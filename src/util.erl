@@ -1,3 +1,5 @@
+% stuff that doesnt fit anywhere else
+
 -module(util).
 
 -include("conf.hrl").

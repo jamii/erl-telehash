@@ -1,3 +1,5 @@
+% simple wrappers around error_logger
+
 -module(log).
 
 -export([start/0]).

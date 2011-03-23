@@ -1,3 +1,5 @@
+% handles encoding/decoding and manipulating telexes
+
 -module(telex).
 
 -include("conf.hrl").

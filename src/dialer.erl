@@ -1,3 +1,6 @@
+% a dialer locates the ?K nodes closest to a given end
+% each dialer is a gen_event handler attached to the switch manager
+
 -module(dialer).
 
 -include("conf.hrl").

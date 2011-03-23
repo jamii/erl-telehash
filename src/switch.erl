@@ -1,3 +1,7 @@
+% switch handles sending and receiving telexes
+% the gen_server manages the udp socket
+% the gen_event allows other processes to subscribe to incoming/outgoing telexes
+
 -module(switch).
 
 -include("conf.hrl").

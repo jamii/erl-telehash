@@ -1,3 +1,5 @@
+% priority queues implemented on top of gb_sets
+
 -module(pq).
 
 -export([empty/0, is_empty/1, size/1, push_one/2, pop_one/1, push/2, pop/2, peek/1, to_list/1, from_list/1, delete/2]).
