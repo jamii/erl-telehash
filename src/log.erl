@@ -5,9 +5,6 @@
 
 % --- api ---
 
-start() ->
-    switch:add_sup_handler(?MODULE, none).
-
 info(Info) ->
     error_logger:info_report([{pid, self()} | Info]).
 
