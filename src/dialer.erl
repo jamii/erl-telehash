@@ -23,7 +23,7 @@
 	  waiting, % nodes in pinged which were contacted less than ?DIAL_TIMEOUT ago
 	  ponged, % nodes which have been contacted and have replied
 	  seen % all nodes which have been seen 
-	 }). % invariant: pq:length(waiting) = ?A or pq:empty(fresh)
+	 }). % invariant: pq:size(waiting) = ?A or pq:empty(fresh)
 
 % --- api ---
 
@@ -118,7 +118,7 @@ code_change(_OldVsn, State, _Extra) ->
 finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
     (pq:is_empty(Fresh) and pq:is_empty(Waiting)) % no way to continue
     or
-    (case pq:length(Ponged) >= ?K of
+    (case pq:size(Ponged) >= ?K of
 	 false ->
 	     false; % dont yet have K nodes
 	 true ->
@@ -132,7 +132,7 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
 
 % contact nodes from fresh until the waiting list is full
 ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
-    Num = ?A - pq:length(Waiting),
+    Num = ?A - pq:size(Waiting),
     {Nodes, Fresh2} = pq:pop(Fresh, Num),
     Telex = {struct, [{'+end', util:end_to_hex(Target)}]},
     lists:foreach(

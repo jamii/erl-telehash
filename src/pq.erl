@@ -1,6 +1,6 @@
 -module(pq).
 
--export([empty/0, is_empty/1, length/1, push_one/2, pop_one/1, push/2, pop/2, peek/1, to_list/1, from_list/1, delete/2]).
+-export([empty/0, is_empty/1, size/1, push_one/2, pop_one/1, push/2, pop/2, peek/1, to_list/1, from_list/1, delete/2]).
 
 empty() ->
     gb_sets:empty().
@@ -8,7 +8,7 @@ empty() ->
 is_empty(Q) ->
     gb_sets:is_empty(Q).
 
-length(Q) ->
+size(Q) ->
     gb_sets:size(Q).
 
 push_one({Prio, Item}, Q) ->
