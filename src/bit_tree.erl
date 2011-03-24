@@ -176,6 +176,6 @@ iter_zipper([], _Suffix) ->
 	    done
     end;
 iter_zipper([{Bit, Tree} | Zipper], Suffix) ->
-    iter_buckets(Tree, Suffix, iter_zipper(Zipper, [Bit|Suffix])).
+    iter_buckets(Tree, Suffix, iter_zipper(Zipper, [not(Bit)|Suffix])).
 
 % --- end ---
