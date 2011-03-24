@@ -13,14 +13,16 @@ bits(Int) ->
     util:to_bits(<<Int:?BITS>>).
 
 add(Suffix, Int, Bucket) ->
-    Bucket2 = [{Suffix, Int} | Bucket],
+    split([{Suffix, Int} | Bucket]).
+
+split(Bucket) ->
     if 
 	length(Bucket) > ?MAX_SIZE -> 
-	    BucketF = [{Suffix2, Int2} || {[false | Suffix2], Int2} <- Bucket2],
-	    BucketT = [{Suffix2, Int2} || {[true | Suffix2], Int2} <- Bucket2],
-	    {split, BucketF, BucketT};
+	    BucketF = [{Suffix2, Int2} || {[false | Suffix2], Int2} <- Bucket],
+	    BucketT = [{Suffix2, Int2} || {[true | Suffix2], Int2} <- Bucket],
+	    {split, split(BucketF), split(BucketT)};
 	true ->
-	    {one, Bucket2}
+	    {ok, Bucket}
     end.
 
 move_to(Int, Tree) ->

@@ -62,17 +62,7 @@ update(Fun,
 	 sizer=Sizer,
 	 tree=#leaf{bucket=Bucket}
 	}=Finger) ->
-    Tree =
-	case Fun(Bucket) of
-	    {one, Bucket2} ->
-		#leaf{size=Sizer(Bucket2), bucket=Bucket2};
-	    {split, BucketF, BucketT} ->
-		SizeF = Sizer(BucketF),
-		SizeT = Sizer(BucketT),
-		ChildF = #leaf{size=SizeF, bucket=BucketF},
-		ChildT = #leaf{size=SizeT, bucket=BucketT},
-		#branch{size=SizeF+SizeT, childF=ChildF, childT=ChildT}
-	end,
+    Tree = bucket_update_to_tree(Sizer, Fun(Bucket)),
     Finger#finger{tree=Tree}.
     
 % iterate through buckets in ascending order of xor distance to (current position ++ Suffix)
@@ -80,6 +70,13 @@ iter(Suffix, #finger{tree=Tree, zipper=Zipper}) ->
     iter_buckets(Tree, Suffix, iter_zipper(Zipper, Suffix)).
 
 % --- internal functions ---
+
+bucket_update_to_tree(Sizer, {ok, Bucket}) ->
+    #leaf{size=Sizer(Bucket), bucket=Bucket};
+bucket_update_to_tree(Sizer, {split, SplitF, SplitT}) ->
+    ChildF = bucket_update_to_tree(Sizer, SplitF),
+    ChildT = bucket_update_to_tree(Sizer, SplitT),
+    #branch{size=tree_size(ChildF)+tree_size(ChildT), childF=ChildF, childT=ChildT}.
 
 tree_size(#leaf{size=Size}) ->
     Size;
