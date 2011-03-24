@@ -12,7 +12,7 @@ Current state of the erlang switch
 
 * Stuff that is yet to come
 
-  * _ring/_line/_br
+  * ring/line/br
 
   * Routing
 
