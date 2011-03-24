@@ -28,7 +28,7 @@
 	  self, % the path *to* self (the nodes own end). either {down, Down_bits} or {up, Up_bits, Down_bits, Gap}
 		% where Gap is the size of the largest tree containing self but not touching this finger
 	  depth, % the number of bits away from the root tree
-	  zipper % a list of {Bit, Tree} pairs marking branches NOT taken
+	  zipper % a list of {Bit, Tree} pairs marking the path taken and the trees missed
 	 }).
 
 % --- api ---
@@ -106,16 +106,16 @@ extend([Next | Bits],
 	case Self of
 	    {up, Up, Down, Gap} -> 
 		% already stepped out of gap
-		{up, [not(Next)|Up], Down, Gap};
+		{up, [Next|Up], Down, Gap};
 	    {down, [Bit|Down]} when Bit == Next ->
 		% still in the gap
 		{down, Down};
 	    {down, [Bit|Down]} when Bit /= Next ->
 		% leaving gap, check its size
-		{up, [not(Next)], [Bit|Down], tree_size(Branch_missed)}
+		{up, [Next], [Bit|Down], tree_size(Branch_missed)}
 	end,
     Depth2 = Depth+1,
-    Zipper2 = [{not(Next), Branch_missed} | Zipper],
+    Zipper2 = [{Next, Branch_missed} | Zipper],
     Finger2 = Finger#finger{
       tree = Branch_taken,
       self = Self2,
@@ -136,17 +136,17 @@ retract(N,
     Size = tree_size(Tree) + tree_size(Branch),
     Tree2 =
 	case Last of
-	    false -> #branch{size=Size, childF=Branch, childT=Tree};
-	    true -> #branch{size=Size, childF=Tree, childT=Branch}
+	    true -> #branch{size=Size, childF=Branch, childT=Tree};
+	    false -> #branch{size=Size, childF=Tree, childT=Branch}
 	end,
     Self2 = 
 	case Self of
 	    {down, Down} ->
 		% already in gap
-		{down, [Last|Down]};
+		{down, [not(Last)|Down]};
 	    {up, [], Down, _Gap} ->
 		% just entered gap
-		{down, [Last|Down]};
+		{down, [not(Last)|Down]};
 	    {up, [Bit|Up], Down, Gap} ->
 		% still outside gap
 		true = (Bit==Last), % assert
@@ -193,6 +193,6 @@ iter_zipper([], _Suffix) ->
 	    done
     end;
 iter_zipper([{Bit, Tree} | Zipper], Suffix) ->
-    iter_buckets(Tree, Suffix, iter_zipper(Zipper, [not(Bit)|Suffix])).
+    iter_buckets(Tree, Suffix, iter_zipper(Zipper, [Bit|Suffix])).
 
 % --- end ---
