@@ -4,7 +4,7 @@
 
 -include("conf.hrl").
 
--export([bits/1, add/3, split/1, move_to/2, add_to_tree/2, make_tree/2, distance/2, move_list_from/2, list_from/3]).
+-export([bits/1, add/3, split/1, add_to_tree/2, make_tree/1, distance/2, list_from/2]).
 
 -define(MAX_SIZE, 3).
 -define(BITS, ?END_BITS).
@@ -22,30 +22,28 @@ split(Bucket) ->
 	    BucketT = [{Suffix2, Int2} || {[true | Suffix2], Int2} <- Bucket],
 	    {split, split(BucketF), split(BucketT)};
 	true ->
-	    {ok, Bucket}
+	    {ok, length(Bucket), Bucket}
     end.
 
-move_to(Int, Tree) ->
-    bit_tree:move_to(bits(Int), Tree).
-
 add_to_tree(Int, Tree) ->
-    {Suffix, Tree2} = move_to(Int, Tree),
-    bit_tree:update(fun (Bucket) -> add(Suffix, Int, Bucket) end, Tree2).
+    bit_tree:update(
+      fun (Suffix, _Depth, _Gap_size, Bucket) -> 
+	      add(Suffix, Int, Bucket) 
+      end, 
+      bits(Int),
+      bits(Int), % dont care about gap for now
+      Tree).
 
-make_tree(Int, Ints) ->   
-    Tree = bit_tree:empty(bits(Int), [], fun (Bucket) -> length(Bucket) end),
+make_tree(Ints) ->   
+    Tree = bit_tree:empty(0, []),
     lists:foldl(fun add_to_tree/2, Tree, Ints).
 
 distance(IntA, IntB) ->
     util:distance({'end', <<IntA:?BITS>>}, {'end', <<IntB:?BITS>>}).
 
 % output *should* be in ascending order
-move_list_from(Int, Tree) -> 
-    {Suffix, Tree2} = bit_tree:move_to(bits(Int), Tree),
-    list_from(Int, Suffix, Tree2).
-
-list_from(Int, Suffix, Tree) ->
-    List = util:iter_to_list(bit_tree:iter(Suffix, Tree)),
+list_from(Int, Tree) ->
+    List = util:iter_to_list(bit_tree:iter(bits(Int), Tree)),
     lists:map(
       fun (Bucket) ->
 	      lists:sort([{distance(Int, Elem), Elem} || {_,Elem} <- Bucket])
