@@ -53,9 +53,14 @@ empty(Self, Bucket, Sizer) ->
        zipper = []
       }.
 
-move_to(Bits, #finger{depth=Depth}=Finger) when length(Bits) == ?END_BITS ->
-    % !!! naive version
-    extend(Bits, retract(Depth, Finger)).
+% equivalent to extend(Bits, retract(Depth, Finger)).
+move_to(Bits, 
+	#finger{
+	  depth=Depth,
+	  zipper=Zipper
+	 }=Finger) when length(Bits) == ?END_BITS ->
+    {Matches, Suffix} = match_zipper(Bits, lists:reverse(Zipper)),
+    extend(Suffix, retract(Depth-Matches, Finger)).
 		
 update(Fun,
        #finger{
@@ -156,6 +161,18 @@ retract(N,
 	  zipper=Zipper
 	 },
     retract(N-1, Finger2).
+
+match_zipper(Bits, Zipper) ->
+    match_zipper(Bits, Zipper, 0).
+match_zipper(Bits, [], Acc) ->
+    {Acc, Bits};
+match_zipper([BitA|Bits], [{BitB,_}|Zipper], Acc) ->
+    if
+	BitA == BitB ->
+	    match_zipper(Bits, Zipper, Acc+1);
+	true ->
+	    {Acc, [BitA|Bits]}
+    end.
 
 % iterate through buckets in ascending order of xor distance to Bits, then hand over to Iter
 iter_buckets(#leaf{bucket=Bucket}, _Bits, Iter) ->
