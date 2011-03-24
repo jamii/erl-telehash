@@ -25,7 +25,7 @@
 -record(finger, {
 	  sizer, % a size function for buckets
 	  tree, % current sub-tree
-	  self, % the path *to* self. either {down, Down_bits} or {up, Up_bits, Down_bits, Gap}
+	  self, % the path *to* self (the nodes own end). either {down, Down_bits} or {up, Up_bits, Down_bits, Gap}
 		% where Gap is the size of the largest tree containing self but not touching this finger
 	  depth, % the number of bits away from the root tree
 	  zipper % a list of {Bit, Tree} pairs marking branches NOT taken
