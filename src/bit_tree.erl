@@ -53,7 +53,7 @@ empty(Self, Bucket, Sizer) ->
        zipper = []
       }.
 
-move_to(Bits, #finger{depth=Depth}=Finger) ->
+move_to(Bits, #finger{depth=Depth}=Finger) when length(Bits) == ?END_BITS ->
     % !!! naive version
     extend(Bits, retract(Depth, Finger)).
 		
