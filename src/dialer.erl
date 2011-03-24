@@ -84,7 +84,10 @@ handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=P
 		    log:info([?MODULE, not_seen, Address, Telex]), % !!! remove
 		    {ok, {Conf, State}};
 		true ->
-		    try [{util:distance(Target, Bin), util:binary_to_address(Bin)} || Bin <- Address_binaries] of
+		    try 
+			Addresses = lists:map(fun util:binary_to_address/1, Address_binaries),
+			[{util:distance(Target, Addr), Addr} || Addr <- Addresses]
+		    of
 			Nodes ->
 			    log:info([?MODULE, pong, Node, Nodes]),
 			    State2 = ponged(Node, Nodes, State),

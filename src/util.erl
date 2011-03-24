@@ -30,8 +30,6 @@ hex_to_end(Hex) when is_binary(Hex) ->
 
 to_end(#address{}=Address) ->
     binary_to_end(address_to_binary(Address));
-to_end(Binary) when is_binary(Binary) ->
-    binary_to_end(Binary);
 to_end({'end', _} = End) ->
     End.
 
