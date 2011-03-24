@@ -8,7 +8,7 @@
 -include("conf.hrl").
 
 -export([empty/3, move_to/2, extend/2, retract/2, update/2, iter/2]).
--export([self/1, depth/1]).
+-export([gap/1, depth/1]).
 
 % a bit_tree is either a leaf or a branch
 -record(leaf, {
@@ -33,8 +33,13 @@
 
 % --- api ---
 
-self(#finger{self=Self}) ->
-    Self.
+gap(#finger{self=Self}) ->
+    case(Self) of
+	{down, _} ->
+	    0;
+	{up, _, _, Gap} ->
+	    Gap
+    end.
 
 depth(#finger{depth=Depth}) ->
     Depth.
