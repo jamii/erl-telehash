@@ -1,7 +1,29 @@
 Current state of the erlang switch
 
-* Can send/receive messages
+* Stuff that is solid and well tested
 
-* Can dial
+  * Nothing!
 
-* No tests
+* Stuff that probably works
+
+  * Sending and receiving telexes
+
+  * Dialing
+
+* Stuff that is yet to come
+
+  * _ring/_line/_br
+
+  * Routing
+
+  * Taps
+
+  * Tests!
+
+* Stuff that would one day be nice
+
+  * Admin console
+
+  * Simplified localhost interface
+
+  * More tests!
