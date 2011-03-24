@@ -4,7 +4,7 @@
 
 -include("conf.hrl").
 
--export([bits/1, add/3, move_to/2, add_to_tree/2, make_tree/2, distance/2, list_from/2]).
+-export([bits/1, add/3, split/1, move_to/2, add_to_tree/2, make_tree/2, distance/2, move_list_from/2, list_from/3]).
 
 -define(MAX_SIZE, 3).
 -define(BITS, ?END_BITS).
@@ -40,9 +40,12 @@ distance(IntA, IntB) ->
     util:distance({'end', <<IntA:?BITS>>}, {'end', <<IntB:?BITS>>}).
 
 % output *should* be in ascending order
-list_from(Int, Tree) -> 
+move_list_from(Int, Tree) -> 
     {Suffix, Tree2} = bit_tree:move_to(bits(Int), Tree),
-    List = util:iter_to_list(bit_tree:iter(Suffix, Tree2)),
+    list_from(Int, Suffix, Tree2).
+
+list_from(Int, Suffix, Tree) ->
+    List = util:iter_to_list(bit_tree:iter(Suffix, Tree)),
     lists:map(
       fun (Bucket) ->
 	      lists:sort([{distance(Int, Elem), Elem} || {_,Elem} <- Bucket])
