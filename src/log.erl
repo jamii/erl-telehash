@@ -2,7 +2,6 @@
 
 -module(log).
 
--export([start/0]).
 -export([info/1, warn/1, error/1]).
 
 % --- api ---
