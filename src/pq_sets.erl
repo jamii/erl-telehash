@@ -1,6 +1,7 @@
 % priority queues implemented on top of gb_sets
+% {key, node} pairs are unique. need {key, node} pair to delete
 
--module(pq).
+-module(pq_sets).
 
 -export([empty/0, is_empty/1, size/1, push_one/2, pop_one/1, push/2, pop/2, peek/1, to_list/1, from_list/1, delete/2]).
 
@@ -17,7 +18,7 @@ push_one({Prio, Item}, Q) ->
     gb_sets:add_element({Prio, Item}, Q).
 
 pop_one(Q) ->
-    case gb_sets:is_empty(Q) of 
+    case is_empty(Q) of 
 	true -> false;
 	false ->
 	    {{Prio, Item}, Q2} = gb_sets:take_smallest(Q),
@@ -30,7 +31,7 @@ push(Items, Q) ->
 pop(Q, 0) ->
     {[], Q};
 pop(Q, K) when K > 0 ->
-    case gb_sets:is_empty(Q) of
+    case is_empty(Q) of
 	true -> 
 	    {[], Q};
 	false ->
@@ -48,5 +49,5 @@ delete({Prio, Item}, Q) ->
 to_list(Q) ->
     gb_sets:to_list(Q).
 
-from_list(Q) ->
-    gb_sets:from_list(Q).
+from_list(List) ->
+    gb_sets:from_list(List).

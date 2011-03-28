@@ -26,7 +26,7 @@
 	  waiting, % nodes in pinged which were contacted less than ?DIAL_TIMEOUT ago
 	  ponged, % nodes which have been contacted and have replied
 	  seen % all nodes which have been seen 
-	 }). % invariant: pq:size(waiting) = ?A or pq:empty(fresh)
+	 }). % invariant: pq_sets:size(waiting) = ?A or pq_sets:empty(fresh)
 
 % --- api ---
 
@@ -43,10 +43,10 @@ dial(To, From, Timeout) ->
     Nodes = [{util:distance(Address, Target), Address}
 	     || Address <- From],
     State = #state{
-      fresh=pq:from_list(Nodes), 
+      fresh=pq_sets:from_list(Nodes), 
       pinged=sets:new(),
-      waiting=pq:empty(),
-      ponged=pq:empty(), 
+      waiting=pq_sets:empty(),
+      ponged=pq_sets:empty(), 
       seen=sets:new()
      },
     ok = switch:add_handler(?MODULE, {Conf, State}),
@@ -107,7 +107,7 @@ handle_info(giveup, {Conf, State}) ->
     remove_handler;
 handle_info({timeout, Node}, {Conf, #state{waiting=Waiting}=State}) ->
     log:info([?MODULE, timeout, Node]),
-    State2 = State#state{waiting=pq:delete(Node, Waiting)},
+    State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
     continue(Conf, State2);
 handle_info(_Info, State) ->
     {ok, State}.
@@ -122,24 +122,24 @@ code_change(_OldVsn, State, _Extra) ->
 
 % is the dialing finished yet?
 finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
-    (pq:is_empty(Fresh) and pq:is_empty(Waiting)) % no way to continue
+    (pq_sets:is_empty(Fresh) and pq_sets:is_empty(Waiting)) % no way to continue
     or
-    (case pq:size(Ponged) >= ?K of
+    (case pq_sets:size(Ponged) >= ?K of
 	 false ->
 	     false; % dont yet have K nodes
 	 true ->
 	     % finish if the K closest nodes we know are closer than all the nodes we haven't checked yet
-	     {Dist_fresh, _} = pq:peek(Fresh),
-	     {Dist_waiting, _} = pq:peek(Waiting),
-	     {Nodes, _} = pq:pop(Ponged, ?K),
+	     {Dist_fresh, _} = pq_sets:peek(Fresh),
+	     {Dist_waiting, _} = pq_sets:peek(Waiting),
+	     {Nodes, _} = pq_sets:pop(Ponged, ?K),
 	     {Dist_ponged, _} = lists:last(Nodes),
 	     (Dist_ponged < Dist_fresh) and (Dist_ponged < Dist_waiting)
      end).
 
 % contact nodes from fresh until the waiting list is full
 ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
-    Num = ?A - pq:size(Waiting),
-    {Nodes, Fresh2} = pq:pop(Fresh, Num),
+    Num = ?A - pq_sets:size(Waiting),
+    {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
     Telex = {struct, [{'+end', util:end_to_hex(Target)}]},
     lists:foreach(
       fun ({Dist, Address}=Node) -> 
@@ -148,23 +148,23 @@ ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
 	      erlang:send_after(?DIAL_TIMEOUT, self(), {timeout, Node})
       end, 
       Nodes),
-    Waiting2 = pq:push(Nodes, Waiting),
+    Waiting2 = pq_sets:push(Nodes, Waiting),
     Pinged2 = sets:union(Pinged, sets:from_list(Nodes)),
     State#state{fresh=Fresh2, waiting=Waiting2, pinged=Pinged2}.
 
 % handle a reply from a node
 ponged(Node, See, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged, ponged=Ponged, seen=Seen}=State) ->
-    Waiting2 = pq:delete(Node, Waiting),
+    Waiting2 = pq_sets:delete(Node, Waiting),
     Pinged2 = sets:del_element(Node, Pinged),
-    Ponged2 = pq:push_one(Node, Ponged),
+    Ponged2 = pq_sets:push_one(Node, Ponged),
     New_nodes = lists:filter(fun (See_node) -> not(sets:is_element(See_node, Seen)) end, See),
-    Fresh2 = pq:push(New_nodes, Fresh),
+    Fresh2 = pq_sets:push(New_nodes, Fresh),
     Seen2 = sets:union(Seen, sets:from_list(See)),
     State#state{fresh=Fresh2, waiting=Waiting2, pinged=Pinged2, ponged=Ponged2, seen=Seen2}.
 				
 % return results to the caller	   
 return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
-    {Nodes, _} = pq:pop(Ponged, ?K),
+    {Nodes, _} = pq_sets:pop(Ponged, ?K),
     log:info([?MODULE, returning, Nodes]),
     Result = [Address || {_Dist, Address} <- Nodes],
     Caller ! {dialed, Ref, Result}.
