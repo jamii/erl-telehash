@@ -1,7 +1,7 @@
 % implements the tree part of kademlias k-buckets
 % a bit_tree maps ends (lists of bits) to buckets
 % as far as the bit_tree is concerned the buckets are completely opaque
-% a bit_tree also knows the nodes own end and can calculate various numbers needed for splitting decisions
+% the bit_tree also calculates various numbers needed for splitting decisions
 
 -module(bit_tree).
 
