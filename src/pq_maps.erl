@@ -3,7 +3,7 @@
 
 -module(pq_maps).
 
--export([empty/0, is_empty/1, size/1, push_one/2, pop_lo/1, pop_hi/1, push/2, pop_los/2, peek/1, to_list/1, from_list/1, get/2, delete/2]).
+-export([empty/0, is_empty/1, size/1, push_one/3, pop_lo/1, pop_hi/1, push/2, pop_los/2, peek/1, to_list/1, from_list/1, get/2, delete/2, values/1]).
 
 empty() ->
     gb_trees:empty().
@@ -18,7 +18,7 @@ push_one(Key, Value, Q) ->
     case gb_trees:lookup(Key, Q)  of
 	{value, _} ->
 	    gb_trees:update(Key, Value, Q);
-	false ->
+	none ->
 	    gb_trees:insert(Key, Value, Q)
     end.
 
@@ -37,7 +37,7 @@ pop_hi(Q) ->
     end.
 
 push(Items, Q) ->
-    lists:foldl(fun ({Key, Value}, Q2) -> push_one({Key, Value}, Q2) end, Q, Items).
+    lists:foldl(fun ({Key, Value}, Q2) -> push_one(Key, Value, Q2) end, Q, Items).
 
 pop_los(Q, 0) ->
     {[], Q};
