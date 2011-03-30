@@ -97,6 +97,10 @@ from_list(Nodes) ->
 sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
     {pq_maps:size(Live), pq_maps:size(Stale), pq_maps:size(Cache)}.
 
+size(Bucket) ->
+    {Lives, Stales, _} = sizes(Bucket),
+    Lives + Stales.
+
 % drop the oldest stale node, crashes if none exist
 drop_stale(#bucket{stale=Stale}=Bucket) ->
     {_Key, _Node, Stale2} = pq_maps:pop_one_rev(Stale),
@@ -106,18 +110,23 @@ drop_stale(#bucket{stale=Stale}=Bucket) ->
 pop_cache(#bucket{cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
 	{_Key, Node, Cache2} ->
-	    {ok, Node, Bucket#bucket{cache=Cache2}};
+	    {node, Node, ok(Bucket#bucket{cache=Cache2})};
 	false ->
-	    {ok, Bucket}
+	    ok(Bucket)
     end.
     		
 % --- functions maintaining the bucket invariants ---
 
+% response format for bit_tree
+ok(Bucket) ->
+    {ok, size(Bucket), Bucket}.
+
+% response format for bit_tree
 split(Bucket) ->
     Nodes = to_list(Bucket),
     NodesF = [Node#node{suffix=Suffix2} || #node{suffix=[false|Suffix2]}=Node <- Nodes],
     NodesT = [Node#node{suffix=Suffix2} || #node{suffix=[true|Suffix2]}=Node <- Nodes],
-    {from_list(NodesF), from_list(NodesT)}.
+    {split, from_list(NodesF), from_list(NodesT)}.
 
 % assumes Address is not already in Bucket, otherwise crashes
 new_node(Address, Suffix, Time, Bucket, May_split) ->
@@ -133,16 +142,16 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 	Lives + Stales < ?K ->
 	    % space left in live
 	    log:info([?MODULE, adding, Node, Bucket]),
-	    {ok, add_node(Node#node{status=live}, Bucket)};
+	    ok(add_node(Node#node{status=live}, Bucket));
 	(Lives < ?K) and (Stales > 0) ->
 	    % space left in live if we push something out of stale
 	    log:info([?MODULE, adding, Node, Bucket]),
-	    Bucket2 = drop_stale(Bucket),  
-	    {ok, add_node(Node#node{status=live}, Bucket2)};
+	    Bucket2 = drop_stale(Bucket),
+	    ok(Size, add_node(Node#node{status=live}, Bucket2));
 	May_split and (Suffix /= []) ->
 	    % allowed to split the bucket to make space
 	    log:info([?MODULE, splitting, Node, Bucket]),
-	    {BucketF, BucketT} = split(Bucket),
+	    {split, BucketF, BucketT} = split(Bucket),
 	    [Bit | Suffix2] = Suffix,
 	    case Bit of
 		false ->
@@ -155,7 +164,7 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 	true ->
 	    % not allowed to split, will have to go in the cache
 	    log:info([?MODULE, caching, Node, Bucket]),
-	    {ok, add_node(Node#node{status=cache}, bucket)}
+	    ok(add_node(Node#node{status=cache}, bucket))
     end.
 
 % --- api ---
@@ -168,10 +177,10 @@ touched(Address, Suffix, Time, Bucket, May_split) ->
 	    case Node#node.status of
 		live -> 
 		    % update last_seen time
-		    {ok, update_node(Node#node{last_seen=Time}, Bucket)};
+		    ok(update_node(Node#node{last_seen=Time}, Bucket));
 		stale ->
 		    % update last_seen time and promote to live
-		    {ok, update_node(Node#node{last_seen=Time, status=live}, Bucket)};
+		    ok(update_node(Node#node{last_seen=Time, status=live}, Bucket));
 		cache ->
 		    % potentially promote the node to live
 		    Bucket2 = del_node(Node, Bucket),
@@ -190,10 +199,10 @@ seen(Address, Time, Suffix, Bucket) ->
 	    case Node#node.status of
 		cache ->
 		    % for cache nodes being in a .see is good enough
-		    {ok, update_node(Node#node{last_seen=Time}, Bucket)};
+		    ok(update_node(Node#node{last_seen=Time}, Bucket));
 		_ ->
 		    % for live/stale nodes we require direct contact so ignore this
-		    {ok, Bucket}
+		    ok(Bucket)
 	    end;
 	none ->
 	    % put node in cache
@@ -204,7 +213,7 @@ seen(Address, Time, Suffix, Bucket) ->
 	      status = cache,
 	      last_seen = Time
 	     },
-	    {ok, add_node(Node, Bucket)}
+	    ok(add_node(Node, Bucket))
     end.
 
 % this address failed to reply in a timely manner
@@ -219,14 +228,14 @@ timedout(Address, Bucket) ->
 		    pop_cache(Bucket2);
 		_ -> 
 		    % if cache or stale already we don't care 
-		    {ok, bucket}
+		    ok(Bucket)
 	    end;
 	none ->
 	    % wtf? we don't even know this node?
 	    % one way this could happen: 
 	    % send N1, sendN1, timedout N1, add N2 (pushing N1 out of stale), timedout N1 
 	    log:warning([?MODULE, unknown_node_timedout, Address, Bucket]),
-	    {ok, Bucket}
+	    ok(Bucket)
     end.
 
 nearest(N, End, #bucket{live=Live, stale=Stale}) ->
