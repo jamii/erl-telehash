@@ -249,7 +249,12 @@ nearest(N, End, #bucket{live=Live, stale=Stale}) ->
     end.
 
 last_touched(#bucket{live=Live, stale=Stale}) ->
-    {{Last_live, _}, _} = pq_maps:peek_hi(Live),
-    {{Last_stale, _}, _} = pq_maps:peek_hi(Stale),
-    % !!! no min function in my erlang version :(
-    if Last_live > Last_stale -> Last_live; true -> Last_stale end.
+    % !!! ugly
+    case {pq_maps:peek_hi(Live), pq_maps:peek_hi(Stale)} of
+	{none, none} -> none;
+	{none, {{Last_stale, _}, _}} -> Last_stale;
+	{{{Last_live, _}, _}, none} -> Last_live;
+	{{{Last_live, _}, _}, {{Last_stale, _}, _}} ->
+	    % !!! no min in my erlang version :(
+	    if Last_live > Last_stale -> Last_live; true -> Last_stale end
+    end.
