@@ -52,10 +52,16 @@ pop_los(Q, K) when K > 0 ->
     end.
 
 peek_lo(Q) ->
-    gb_trees:smallest(Q).
+    case is_empty(Q) of
+	true -> none;
+	false -> {ok, gb_trees:smallest(Q)}
+    end.
 
 peek_hi(Q) ->
-    gb_trees:largest(Q).
+    case is_empty(Q) of
+	true -> none;
+	false -> {ok, gb_trees:largest(Q)}
+    end.
 
 % assumes Key is in Q, crashes otherwise 
 get(Key, Q) ->
