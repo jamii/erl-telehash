@@ -3,7 +3,7 @@
 -include("types.hrl").
 -include("conf.hrl").
 
--export([empty/0, touched/5, seen/4, timedout/2]).
+-export([empty/0, touched/5, seen/4, timedout/2, nearest/3]).
 
 -define(K, ?DIAL_DEPTH).
 
@@ -228,3 +228,17 @@ timedout(Address, Bucket) ->
 	    log:warning([?MODULE, unknown_node_timedout, Address, Bucket]),
 	    {ok, Bucket}
     end.
+
+nearest(N, End, #bucket{live=Live, stale=Stale}) ->
+    Nodes = pq_maps:to_list(Live) ++ pq_maps:to_list(Stale),
+    Num_nodes = pq_maps:size(Live) + pq_maps:size(Stale),
+    if 
+	Num_nodes =< N ->
+	    [Node#node.address || {_Key, Node} <- Nodes];
+	true ->    
+	    % !!! maybe should prefer to return live nodes even if further away
+	    Nodes_by_dist = [{util:distance(End, Node#node.'end'), Node} || {_Key, Node} <- pq_maps:to_list(Live)],
+	    {Closest, _} = lists:split(N, lists:sort(Nodes_by_dist)),
+	    [Node#node.address || {_Dist, Node} <- Closest]
+    end.
+		    
