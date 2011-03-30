@@ -103,14 +103,21 @@ drop_stale(#bucket{stale=Stale}=Bucket) ->
     Bucket#bucket{stale=Stale2}.
 
 % return most recently seen cache node, if any exist
-pop_cache(#bucket{cache=Cache}=Bucket) ->
+pop_cache_hi(#bucket{cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
 	{_Key, Node, Cache2} ->
 	    {node, Node, ok(Bucket#bucket{cache=Cache2})};
 	false ->
 	    ok(Bucket)
     end.
-    		
+
+% return the oldest live node
+peek_live_lo(#bucket{live=Live}) ->
+    case pq_maps:peek_lo(Live) of
+	none -> none;
+	{_, Node} -> {ok, Node}
+    end.
+	     		
 % --- functions maintaining the bucket invariants ---
 
 % response format for bit_tree
@@ -202,7 +209,7 @@ seen(Address, Time, Suffix, Bucket) ->
 		    ok(Bucket)
 	    end;
 	none ->
-	    % put node in cache
+	    % put node in cache, return a live node to ping
 	    Node = #node{
 	      address = Address,
 	      'end' = util:to_end(Address),
@@ -210,7 +217,11 @@ seen(Address, Time, Suffix, Bucket) ->
 	      status = cache,
 	      last_seen = Time
 	     },
-	    ok(add_node(Node, Bucket))
+	    Bucket2 = add_node(Node, Bucket),
+	    case peek_live_lo(Bucket) of
+		none -> ok(Bucket2);
+		{ok, Live_node} -> {node, Live_node, ok(Bucket2)}
+	    end
     end.
 
 % this address failed to reply in a timely manner
@@ -222,7 +233,7 @@ timedout(Address, Bucket) ->
 		live ->
 		    % mark as stale, return a cache node that might be a suitable replacement
 		    Bucket2 = update_node(Node#node{status=stale}, Bucket),
-		    pop_cache(Bucket2);
+		    pop_cache_hi(Bucket2);
 		_ -> 
 		    % if cache or stale already we don't care 
 		    ok(Bucket)
