@@ -3,7 +3,7 @@
 -include("types.hrl").
 -include("conf.hrl").
 
--export([empty/0, touched/5, seen/4, timedout/2, nearest/3]).
+-export([empty/0, touched/5, seen/4, timedout/2, nearest/3, last_touched/1]).
 
 -define(K, ?DIAL_DEPTH).
 
@@ -250,4 +250,9 @@ nearest(N, End, #bucket{live=Live, stale=Stale}) ->
 	    {Closest, _} = lists:split(N, lists:sort(Nodes_by_dist)),
 	    [Node#node.address || {_Dist, Node} <- Closest]
     end.
-		    
+
+last_touched(#bucket{live=Live, stale=Stale}) ->
+    {{Last_live, _), _} = pq_maps:peek_lo(Live),
+    {{Last_stale, _}, _} = pq_maps:peek_lo(Stale),
+    % !!! no min function in my erlang version :(
+    if Last_live < Last_stale -> Last_live; _ -> Last_stale end.
