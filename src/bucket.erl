@@ -97,10 +97,6 @@ from_list(Nodes) ->
 sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
     {pq_maps:size(Live), pq_maps:size(Stale), pq_maps:size(Cache)}.
 
-size(Bucket) ->
-    {Lives, Stales, _} = sizes(Bucket),
-    Lives + Stales.
-
 % drop the oldest stale node, crashes if none exist
 drop_stale(#bucket{stale=Stale}=Bucket) ->
     {_Key, _Node, Stale2} = pq_maps:pop_one_rev(Stale),
@@ -119,7 +115,8 @@ pop_cache(#bucket{cache=Cache}=Bucket) ->
 
 % response format for bit_tree
 ok(Bucket) ->
-    {ok, size(Bucket), Bucket}.
+    {Lives, Stales, _} = sizes(Bucket),
+    {ok, Lives + Stales, Bucket}.
 
 % response format for bit_tree
 split(Bucket) ->
@@ -147,7 +144,7 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 	    % space left in live if we push something out of stale
 	    log:info([?MODULE, adding, Node, Bucket]),
 	    Bucket2 = drop_stale(Bucket),
-	    ok(Size, add_node(Node#node{status=live}, Bucket2));
+	    ok(add_node(Node#node{status=live}, Bucket2));
 	May_split and (Suffix /= []) ->
 	    % allowed to split the bucket to make space
 	    log:info([?MODULE, splitting, Node, Bucket]),
@@ -252,7 +249,7 @@ nearest(N, End, #bucket{live=Live, stale=Stale}) ->
     end.
 
 last_touched(#bucket{live=Live, stale=Stale}) ->
-    {{Last_live, _), _} = pq_maps:peek_lo(Live),
+    {{Last_live, _}, _} = pq_maps:peek_lo(Live),
     {{Last_stale, _}, _} = pq_maps:peek_lo(Stale),
     % !!! no min function in my erlang version :(
-    if Last_live < Last_stale -> Last_live; _ -> Last_stale end.
+    if Last_live < Last_stale -> Last_live; true -> Last_stale end.
