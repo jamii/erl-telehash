@@ -43,7 +43,7 @@ distance(IntA, IntB) ->
 
 % output *should* be in ascending order
 list_from(Int, Tree) ->
-    List = util:iter_to_list(bit_tree:iter(bits(Int), Tree)),
+    List = iter:to_list(bit_tree:iter(bits(Int), Tree)),
     lists:map(
       fun (Bucket) ->
 	      lists:sort([{distance(Int, Elem), Elem} || {_,Elem} <- Bucket])
