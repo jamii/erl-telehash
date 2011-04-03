@@ -58,18 +58,20 @@ update(Fun, Bits, Self, Depth, #branch{childF=ChildF, childT=ChildT}) ->
 
 % iterate through buckets in ascending order of xor distance to Bits
 iter(Bits, Tree) ->
-    iter(Bits, Tree, fun() -> done end).
+    iter(Bits, [], Tree, fun() -> done end).
 			     
-iter(_Bits, #leaf{bucket=Bucket}, Iter) ->
+iter(_Suffix, Prefix_rev, #leaf{bucket=Bucket}, Iter) ->
     fun () ->
-	    {Bucket, Iter}
+	    {{lists:reverse(Prefix_rev), Bucket}, Iter}
     end;
-iter([Bit|Bits], #branch{childF=ChildF, childT=ChildT}, Iter) ->
+iter(Suffix, Prefix_rev, #branch{childF=ChildF, childT=ChildT}, Iter) ->
+    [Bit|Suffix2] = Suffix,
+    Prefix_rev2 = [Bit|Prefix_rev],
     case Bit of 
 	true ->
-	    iter(Bits, ChildT, iter(Bits, ChildF, Iter));
+	    iter(Suffix2, Prefix_rev2, ChildT, iter(Suffix2, Prefix_rev2, ChildF, Iter));
 	false ->
-	    iter(Bits, ChildF, iter(Bits, ChildT, Iter))
+	    iter(Suffix2, Prefix_rev2, ChildF, iter(Suffix2, Prefix_rev2, ChildT, Iter))
     end.
 
 % --- internal functions ---
