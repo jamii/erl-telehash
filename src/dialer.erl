@@ -174,6 +174,7 @@ return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
 continue(Conf, State) ->
     case finished(State) of
 	true ->
+	    switch:notify({dialed, Conf#conf.target}),
 	    return(Conf, State),
 	    remove_handler;
 	false ->

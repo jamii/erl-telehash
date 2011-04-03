@@ -7,7 +7,7 @@
 -include("conf.hrl").
 -include("types.hrl").
 
--export([start_link/0, add_handler/2, add_sup_handler/2, send/2, recv/2]).
+-export([start_link/0, add_handler/2, add_sup_handler/2, send/2, recv/2, notify/1]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -35,6 +35,9 @@ send(#address{}=Address, Telex) ->
 % for testing / debugging
 recv(#address{}=Address, Packet) ->
     gen_server:cast(?SERVER, {recv, Address, Packet}).
+
+notify(Event) ->
+    gen_event:notify(?EVENT, Event).
 
 % --- gen_server callbacks ---
 
