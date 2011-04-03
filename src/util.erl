@@ -52,7 +52,7 @@ random_end() ->
 random_end(Prefix) when is_list(Prefix) ->
     random_end(<< <<(bit(B)):1>> || B <- Prefix >>);
 random_end(Prefix) when is_bitstring(Prefix) ->
-    Gap = 8 - (bit_size(Prefix) rem 8),
+    Gap = (8 - (bit_size(Prefix) rem 8)) rem 8,
     << Bits:Gap, _/bitstring >> = crypto:rand_bytes(1),
     Bytes = crypto:rand_bytes((?END_BITS div 8) - byte_size(Prefix)),
     {'end', << Prefix/bitstring , Bits:Gap, Bytes/binary >>}.
