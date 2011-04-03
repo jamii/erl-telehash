@@ -109,7 +109,7 @@ sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
 
 % drop the oldest stale node, crashes if none exist
 drop_stale(#bucket{nodes=Nodes, stale=Stale}=Bucket) ->
-    {_Key, #node{address=Address}, Stale2} = pq_maps:pop_one_hi(Stale),
+    {_Key, #node{address=Address}, Stale2} = pq_maps:pop_hi(Stale),
     Nodes2 = gb_trees:delete(Address, Nodes),
     Bucket#bucket{nodes=Nodes2, stale=Stale2}.
 
@@ -254,7 +254,7 @@ timedout(Address, Bucket) ->
 	    % wtf? we don't even know this node?
 	    % one way this could happen: 
 	    % send N1, sendN1, timedout N1, add N2 (pushing N1 out of stale), timedout N1 
-	    log:warning([?MODULE, unknown_node_timedout, Address, Bucket]),
+	    log:warn([?MODULE, unknown_node_timedout, Address, Bucket]),
 	    ok(Bucket)
     end.
 
