@@ -16,7 +16,7 @@
 	 }).
 
 -record(state, { % the state of the router in normal operation
-	  self, % the routers own #address{}
+	  self, % the bits of the routers own end
 	  pinged, % set of addresses which have been pinged and not yet replied/timedout
 	  table % the routing table, a bit_tree containing buckets of nodes
 	 }).
@@ -25,15 +25,14 @@
 
 start(#address{}=Self) ->
     log:info([?MODULE, starting]),
-    State = #state{self=Self, table=empty_table(Self)},
+    State = #state{self=util:to_bits(Self), table=empty_table(Self)},
     ok = switch:add_handler(?MODULE, State).
 
 bootstrap(Addresses, Timeout) ->
     log:info([?MODULE, bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
     ok = switch:add_handler(?MODULE, State),
-    {'end', End} = util:random_end(),
-    Telex = {struct, [{'+end', End}]},
+    Telex = {struct, [{'+end', util:end_to_hex(util:random_end())}]},
     lists:foreach(fun (Address) -> switch:send(Address, Telex) end, Addresses),
     ok.
 
@@ -55,18 +54,21 @@ handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
     % bootstrapping, waiting to receive a message telling us our own address
     case {lists:member(From, Addresses), telex:get(Telex, '_to')} of
 	{true, {ok, Binary}} ->
-	    try
-		Self = util:to_end(util:binary_to_address(Binary)),
-		log:info([?MODULE, bootstrap, finished, {self, Self}, {from, From}]),
-		Table = refresh(Self, empty_table(Self)),
-		{ok, #state{self=Self, table=Table}}
+	    try util:to_end(util:binary_to_address(Binary)) of
+		End ->
+		    Self = util:to_bits(End),
+		    Table = touched(From, Self, empty_table(Self)),
+		    dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT),
+		    Table2 = refresh(Self, Table),
+		    log:info([?MODULE, bootstrap, finished, {self, Self}, {from, From}]),
+		    {ok, #state{self=Self, pinged=sets:empty(), table=Table2}}
 	    catch 
 		_ ->
 		    log:warn([?MODULE, bootstrap, bad_self, {self, Binary}, {from, From}]),
 		    {ok, Bootstrap}
 	    end;
 	_ ->
-	    ok
+	    {ok, Bootstrap}
     end;
 handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     % this counts as a reply
@@ -110,7 +112,9 @@ handle_event({dialed, End}, #state{self=Self, table=Table}=State) ->
     % record the dialing time
     log:info([?MODULE, {dialed, End}]),
     Table2 = dialed(End, Self, Table),
-    {ok, ok, State#state{table=Table2}}.
+    {ok, ok, State#state{table=Table2}};
+handle_event(_, State) ->
+    {ok, State}.
 
 handle_info(giveup, #bootstrap{}=State) ->
     % failed to bootstrap, die
@@ -153,14 +157,13 @@ code_change(_OldVsn, State, _Extra) ->
 
 empty_table(Self) ->
     % pre-split buckets containing Self, so that refreshes hit a useful number of buckets
-    Bits = util:to_bits(Self),
     Split = fun (_, _, _, Bucket) -> bucket:split(Bucket) end,
     lists:foldl(
       fun (_, Tree) ->
-	      bit_tree:update(Split, Bits, Self, Tree)
+	      bit_tree:update(Split, Self, Self, Tree)
       end,
       bit_tree:empty(0, bucket:empty()),
-      lists:seq(0, ?END_BITS+2) % !!! probably not right first time
+      lists:seq(1, ?END_BITS) % !!! probably not right first time
      ).
 
 refresh(Self, Table) ->
@@ -234,8 +237,7 @@ see(To, End, Table) ->
     switch:send(To, Telex).
 
 ping(To) ->
-    {'end', End} = util:random_end(),
-    Telex = {struct, [{'+end', End}]},
+    Telex = {struct, [{'+end', util:end_to_hex(util:random_end())}]},
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
     switch:send(To, Telex).
