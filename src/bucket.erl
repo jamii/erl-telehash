@@ -11,7 +11,7 @@
 -include("types.hrl").
 -include("conf.hrl").
 
--export([empty/0, touched/5, seen/4, timedout/2, nearest/3, last_touched/1]).
+-export([empty/0, touched/5, seen/4, timedout/2, dialed/2, nearest/3, last_touched/1]).
 
 -define(K, ?REPLICATION).
 
@@ -24,6 +24,7 @@
 	 }).
 
 -record(bucket, {
+	  last_dialed, % time an end in this bucket was last dialed, or never
 	  nodes, % gb_tree mapping addresses to {Status, Last_seen}
 	  % remaining fields are pq's of nodes sorted by their last_seen field
 	  live, % nodes currently expected to be alive
@@ -35,6 +36,7 @@
 
 empty() ->
     #bucket{
+       last_dialed = never,
        nodes = gb_trees:empty(),
        live = pq_maps:empty(),
        stale = pq_maps:empty(),
@@ -255,6 +257,9 @@ timedout(Address, Bucket) ->
 	    log:warning([?MODULE, unknown_node_timedout, Address, Bucket]),
 	    ok(Bucket)
     end.
+
+dialed(Time, Bucket) ->
+    Bucket#bucket{last_dialed=Time}.
 
 nearest(N, End, #bucket{live=Live, stale=Stale}) ->
     Nodes = pq_maps:to_list(Live) ++ pq_maps:to_list(Stale),
