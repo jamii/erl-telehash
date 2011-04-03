@@ -139,7 +139,7 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
 ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
     Num = ?A - pq_sets:size(Waiting),
     {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
-    Telex = {struct, [{'+end', util:end_to_hex(Target)}]},
+    Telex = telex:end_signal(Target),
     lists:foreach(
       fun ({_Dist, Address}=Node) -> 
 	      ?INFO([ping, {node, Node}]),

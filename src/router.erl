@@ -33,7 +33,7 @@ bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
     ok = switch:add_handler(?MODULE, State),
-    Telex = {struct, [{'+end', util:end_to_hex(util:random_end())}]},
+    Telex = telex:end_signal(util:random_end()),
     lists:foreach(fun (Address) -> switch:send(Address, Telex) end, Addresses),
     ok.
 
@@ -234,12 +234,11 @@ timedout(Address, Self, Table) ->
      ).
     
 see(To, End, Table) ->
-    Addresses = [util:address_to_binary(Address) || Address <- nearest(?K, End, Table)],
-    Telex = {struct, [{'.see', Addresses}]},
+    Telex = telex:see_command(nearest(?K, End, Table)),
     switch:send(To, Telex).
 
 ping(To) ->
-    Telex = {struct, [{'+end', util:end_to_hex(util:random_end())}]},
+    Telex = telex:end_signal(util:random_end()),
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
     switch:send(To, Telex).

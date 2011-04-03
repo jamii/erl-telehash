@@ -4,7 +4,7 @@
 
 -include("conf.hrl").
 
--export([encode/1, decode/1, get/2, set/3, update/4]).
+-export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1]).
 
 % --- api ---
 
@@ -84,5 +84,11 @@ update_path(Telex, [], F, _Default) ->
     F(Telex);
 update_path(Telex, [Path_elem | Path], F, Default) ->
     update(Telex, Path_elem, fun (T) -> update_path(T, Path, F, Default) end, Default).
+
+end_signal({'end', _}=End) ->
+    {struct, [{'+end', util:end_to_hex(End)}]}.
+
+see_command(Addresses) ->
+    {struct, [{'.see', [util:address_to_binary(Address) || Address <- Addresses]}]}.
 
 % --- end ---
