@@ -120,6 +120,7 @@ handle_info(giveup, #state{}=State) ->
     % made it in time
     {ok, State};
 handle_info(refresh, #state{self=Self, table=Table}=State) ->
+    log:info([?MODULE, refreshing]),
     Table2 = refresh(Self, Table),
     {ok, State#state{table=Table2}};
 handle_info({dialed, _, _}, State) ->
@@ -127,12 +128,14 @@ handle_info({dialed, _, _}, State) ->
     {ok, State};
 handle_info({pinging, Address}, #state{pinged=Pinged}=State) ->
     % do this in a message to self to avoid some awkward control flow
+    log:info([?MODULE, recording_ping, {address, Address}]),
     Pinged2 = sets:add_element(Address, Pinged),
     {ok, State#state{pinged=Pinged2}};
 handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     case lists:member(Address, Pinged) of
 	true ->
 	    % ping timedout
+	    log:info([?MODULE, timeout, {address, Address}]),
 	    Table2 = timedout(Address, Self, Table),
 	    {ok, State#state{table=Table2}};
 	false ->
@@ -233,6 +236,7 @@ see(To, End, Table) ->
 ping(To) ->
     {'end', End} = util:random_end(),
     Telex = {struct, [{'+end', End}]},
+    % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
     switch:send(To, Telex).
 
@@ -251,5 +255,3 @@ nearest(N, End, Table) when N>=0 ->
 	      iter:map(
 		fun (Bucket) -> bucket:by_dist(End, Bucket) end, 
 		bit_tree:iter(End, Table))).
-		      
-% !!! logging
