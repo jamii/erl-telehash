@@ -59,7 +59,8 @@ handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
 		End ->
 		    Self = util:to_bits(End),
 		    Table = touched(From, Self, empty_table(Self)),
-		    dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT),
+		    % cant call add_handler from inside the same manager :(
+		    spawn_link(fun () -> dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT) end), 
 		    Table2 = refresh(Self, Table),
 		    ?INFO([bootstrap, finished, {self, Self}, {from, From}]),
 		    {ok, #state{self=Self, pinged=sets:new(), table=Table2}}
@@ -167,23 +168,30 @@ empty_table(Self) ->
       lists:seq(1, ?END_BITS) % !!! probably not right first time
      ).
 
+needs_refresh(Bucket, Now) ->
+    case bucket:last_dialed(Bucket) of
+	never -> 
+	    true;
+	Last -> 
+	    (timer:now_diff(Now, Last) div 1000) < ?ROUTER_REFRESH_TIME
+    end.
+
 refresh(Self, Table) ->
     Now = now(),
     iter:foreach(
       fun ({Prefix, Bucket}) ->
-	      % has the bucket been dialed since the last refresh?
-	      Diff = timer:now_diff(Now, bucket:last_dialed(Bucket)) div 1000, % now_diff gives microseconds
-	      if 
-		  Diff > ?ROUTER_REFRESH_TIME ->
+	      case needs_refresh(Bucket, Now) of
+		  true ->
 		      ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
 		      To = util:random_end(Prefix),
 		      From = nearest(?K, To, Table),
-		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
-		  true ->
+		      % cant call add_handler from inside the same manager :(
+		      spawn(fun () -> dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT) end);
+		  false ->
 		      ok
 	      end
       end,
-      bit_tree:iter(util:to_bits(Self), Table)
+      bit_tree:iter(Self, Table)
      ),
     erlang:send_after(?ROUTER_REFRESH_TIME, self(), refresh),
     ok.
