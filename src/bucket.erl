@@ -142,7 +142,7 @@ split(Bucket) ->
     Nodes = to_list(Bucket),
     NodesF = [Node#node{suffix=Suffix2} || #node{suffix=[false|Suffix2]}=Node <- Nodes],
     NodesT = [Node#node{suffix=Suffix2} || #node{suffix=[true|Suffix2]}=Node <- Nodes],
-    {split, from_list(NodesF), from_list(NodesT)}.
+    {split, ok(from_list(NodesF)), ok(from_list(NodesT))}.
 
 % assumes Address is not already in Bucket, otherwise crashes
 new_node(Address, Suffix, Time, Bucket, May_split) ->
@@ -167,7 +167,7 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 	May_split and (Suffix /= []) ->
 	    % allowed to split the bucket to make space
 	    log:info([?MODULE, splitting, Node, Bucket]),
-	    {split, BucketF, BucketT} = split(Bucket),
+	    {split, {ok, BucketF}, {ok, BucketT}} = split(Bucket),
 	    [Bit | Suffix2] = Suffix,
 	    case Bit of
 		false ->
