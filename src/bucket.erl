@@ -98,15 +98,17 @@ sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
     {pq_maps:size(Live), pq_maps:size(Stale), pq_maps:size(Cache)}.
 
 % drop the oldest stale node, crashes if none exist
-drop_stale(#bucket{stale=Stale}=Bucket) ->
-    {_Key, _Node, Stale2} = pq_maps:pop_one_rev(Stale),
-    Bucket#bucket{stale=Stale2}.
+drop_stale(#bucket{nodes=Nodes, stale=Stale}=Bucket) ->
+    {_Key, #node{address=Address}, Stale2} = pq_maps:pop_one_hi(Stale),
+    Nodes2 = gb_trees:delete(Address, Nodes),
+    Bucket#bucket{nodes=Nodes2, stale=Stale2}.
 
 % return most recently seen cache node, if any exist
-pop_cache_hi(#bucket{cache=Cache}=Bucket) ->
+pop_cache_hi(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
-	{_Key, Node, Cache2} ->
-	    {node, Node, ok(Bucket#bucket{cache=Cache2})};
+	{_Key, #node{address=Address}=Node, Cache2} ->
+	    Nodes2 = gb_trees:delete(Address, Nodes),
+	    {node, Node, ok(Bucket#bucket{nodes=Nodes2, cache=Cache2})};
 	false ->
 	    ok(Bucket)
     end.
