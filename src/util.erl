@@ -5,7 +5,7 @@
 -include("conf.hrl").
 -include("types.hrl").
 
--export([address_to_binary/1, binary_to_address/1, binary_to_end/1, hex_to_end/1, end_to_hex/1, to_end/1, distance/2, to_bits/1]).
+-export([address_to_binary/1, binary_to_address/1, binary_to_end/1, hex_to_end/1, end_to_hex/1, to_end/1, random_end/0, random_end/1, distance/2, to_bits/1]).
 -export([ensure_started/1, set_nth/3]).
 
 % --- api --- 
@@ -41,14 +41,28 @@ distance(A, B) ->
     <<Dist:?END_BITS>> = Xor,
     Dist.
 
+bit(false) ->
+    0;
+bit(true) ->
+    1.
+
+random_end() ->
+    {'end', crypto:rand_bytes(?END_BITS div 8)}.
+
+random_end(Prefix) when is_list(Prefix) ->
+    random_end(<< <<(bit(B)):1>> || B <- Prefix >>);
+random_end(Prefix) when is_bitstring(Prefix) ->
+    Gap = 8 - (bit_size(Prefix) rem 8),
+    << Bits:Gap, _/bitstring >> = crypto:rand_bytes(1),
+    Bytes = crypto:rand_bytes((?END_BITS div 8) - byte_size(Prefix)),
+    {'end', << Prefix/bitstring , Bits:Gap, Bytes/binary >>}.
+
 to_bits({'end', End}) ->
     to_bits(End);
 to_bits(<<>>) ->
     [];
 to_bits(Bin) when is_bitstring(Bin) ->
-    <<Bit:1, Bin2/bitstring>> = Bin,
-    [(Bit>0) | to_bits(Bin2)].
-
+    [(Bit>0) || <<Bit:1>> <= Bin].
 
 ensure_started(Module) ->
     case Module:start() of

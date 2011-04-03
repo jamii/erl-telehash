@@ -261,18 +261,11 @@ timedout(Address, Bucket) ->
 dialed(Time, Bucket) ->
     Bucket#bucket{last_dialed=Time}.
 
-nearest(N, End, #bucket{live=Live, stale=Stale}) ->
+by_dist(End, #bucket{live=Live, stale=Stale}) ->
     Nodes = pq_maps:to_list(Live) ++ pq_maps:to_list(Stale),
-    Num_nodes = pq_maps:size(Live) + pq_maps:size(Stale),
-    if 
-	Num_nodes =< N ->
-	    [Node#node.address || {_Key, Node} <- Nodes];
-	true ->    
-	    % !!! maybe should prefer to return live nodes even if further away
-	    Nodes_by_dist = [{util:distance(End, Node#node.'end'), Node} || {_Key, Node} <- pq_maps:to_list(Live)],
-	    {Closest, _} = lists:split(N, lists:sort(Nodes_by_dist)),
-	    [Node#node.address || {_Dist, Node} <- Closest]
-    end.
+    % !!! maybe should prefer to return live nodes even if further away
+    Nodes_by_dist = [{util:distance(End, Node#node.'end'), Node} || {_Key, Node} <- Nodes],
+    [Node#node.address || {_Dist, Node} <- lists:sort(Nodes_by_dist)].
 
 last_touched(#bucket{live=Live, stale=Stale}) ->
     % !!! ugly
