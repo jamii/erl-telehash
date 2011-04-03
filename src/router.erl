@@ -2,6 +2,7 @@
 
 -include("types.hrl").
 -include("conf.hrl").
+-include("log.hrl").
 
 -export([start/1, bootstrap/2]).
 
@@ -24,12 +25,12 @@
 % --- api ---	
 
 start(#address{}=Self) ->
-    log:info([?MODULE, starting]),
+    ?INFO([starting]),
     State = #state{self=util:to_bits(Self), table=empty_table(Self)},
     ok = switch:add_handler(?MODULE, State).
 
 bootstrap(Addresses, Timeout) ->
-    log:info([?MODULE, bootstrapping]),
+    ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
     ok = switch:add_handler(?MODULE, State),
     Telex = {struct, [{'+end', util:end_to_hex(util:random_end())}]},
@@ -60,11 +61,11 @@ handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
 		    Table = touched(From, Self, empty_table(Self)),
 		    dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT),
 		    Table2 = refresh(Self, Table),
-		    log:info([?MODULE, bootstrap, finished, {self, Self}, {from, From}]),
-		    {ok, #state{self=Self, pinged=sets:empty(), table=Table2}}
+		    ?INFO([bootstrap, finished, {self, Self}, {from, From}]),
+		    {ok, #state{self=Self, pinged=sets:new(), table=Table2}}
 	    catch 
 		_ ->
-		    log:warn([?MODULE, bootstrap, bad_self, {self, Binary}, {from, From}]),
+		    ?WARN([bootstrap, bad_self, {self, Binary}, {from, From}]),
 		    {ok, Bootstrap}
 	    end;
 	_ ->
@@ -75,7 +76,7 @@ handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=
     Pinged2 = sets:del_element(From, Pinged),
     % touched the sender
     % !!! eventually will check _line here
-    log:info([?MODULE, touched, {from, From}]),
+    ?INFO([touched, {node, From}]),
     Table2 = touched(From, Self, Table),
     % maybe seen some nodes
     Table3 =
@@ -83,11 +84,11 @@ handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=
 	    {ok, Binaries} ->
 		try [util:binary_to_address(Bin) || Bin <- Binaries] of
 		    Addresses ->
-			log:info([?MODULE, seen, {nodes, Addresses}, {from, From}]),
+			?INFO([seen, {nodes, Addresses}, {from, From}]),
 			lists:foldl(fun (Address, Table_acc) -> seen(Address, Self, Table_acc) end, Table2, Addresses)
 		catch
 		    _ ->
-			log:warn([?MODULE, bad_seen, {nodes, Binaries}, {from, From}]),
+			?INFO([bad_seen, {nodes, Binaries}, {from, From}]),
 			Table2
 		end;
 	    _ ->
@@ -98,11 +99,11 @@ handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=
 	{ok, Hex} ->
 	    try util:hex_to_end(Hex) of
 		End ->
-		    log:info([?MODULE, see, {'end', End}, {from, From}]),
+		    ?INFO([see, {'end', End}, {from, From}]),
 		    see(From, End, Table3)
 	    catch
 		_ ->
-		    log:warn([?MODULE, bad_see, {'end', Hex}, {from, From}])
+		    ?WARN([bad_see, {'end', Hex}, {from, From}])
 	    end;
 	_ -> 
 	    ok
@@ -110,21 +111,21 @@ handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=
     {ok, State#state{pinged=Pinged2, table=Table2}};
 handle_event({dialed, End}, #state{self=Self, table=Table}=State) ->
     % record the dialing time
-    log:info([?MODULE, {dialed, End}]),
+    ?INFO([dialed, {'end', End}]),
     Table2 = dialed(End, Self, Table),
     {ok, ok, State#state{table=Table2}};
 handle_event(_, State) ->
     {ok, State}.
 
-handle_info(giveup, #bootstrap{}=State) ->
+handle_info(giveup, #bootstrap{}=Bootstrap) ->
     % failed to bootstrap, die
-    log:info([?MODULE, giveup, State]),
+    ?INFO([giveup, {state, Bootstrap}]),
     remove_handler;
 handle_info(giveup, #state{}=State) ->
     % made it in time
     {ok, State};
 handle_info(refresh, #state{self=Self, table=Table}=State) ->
-    log:info([?MODULE, refreshing]),
+    ?INFO([refreshing_table]),
     Table2 = refresh(Self, Table),
     {ok, State#state{table=Table2}};
 handle_info({dialed, _, _}, State) ->
@@ -132,14 +133,14 @@ handle_info({dialed, _, _}, State) ->
     {ok, State};
 handle_info({pinging, Address}, #state{pinged=Pinged}=State) ->
     % do this in a message to self to avoid some awkward control flow
-    log:info([?MODULE, recording_ping, {address, Address}]),
+    ?INFO([recording_ping, {address, Address}]),
     Pinged2 = sets:add_element(Address, Pinged),
     {ok, State#state{pinged=Pinged2}};
 handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     case lists:member(Address, Pinged) of
 	true ->
 	    % ping timedout
-	    log:info([?MODULE, timeout, {address, Address}]),
+	    ?INFO([timeout, {address, Address}]),
 	    Table2 = timedout(Address, Self, Table),
 	    {ok, State#state{table=Table2}};
 	false ->
@@ -174,6 +175,7 @@ refresh(Self, Table) ->
 	      Diff = timer:now_diff(Now, bucket:last_dialed(Bucket)) div 1000, % now_diff gives microseconds
 	      if 
 		  Diff > ?ROUTER_REFRESH_TIME ->
+		      ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
 		      To = util:random_end(Prefix),
 		      From = nearest(?K, To, Table),
 		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);

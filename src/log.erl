@@ -7,12 +7,12 @@
 % --- api ---
 
 info(Info) ->
-    error_logger:info_report([{pid, self()} | Info]).
+    error_logger:info_report(Info).
 
 warn(Warn) ->
-    error_logger:warning_report([{pid, self()} | Warn]).
+    error_logger:warning_report(Warn).
 
 error(Error) ->
-    error_logger:error_report([{pid, self()} | Error]).
+    error_logger:error_report(Error).
 
 % --- end ---

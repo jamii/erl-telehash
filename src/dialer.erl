@@ -5,6 +5,7 @@
 
 -include("conf.hrl").
 -include("types.hrl").
+-include("log.hrl").
 
 -export([dial/3, dial_sync/3]).
 
@@ -31,7 +32,7 @@
 % --- api ---
 
 dial(To, From, Timeout) ->
-    log:info([?MODULE, dialing, To, From, Timeout]),
+    ?INFO([dialing, {to, To}, {from, From}, {timeout, Timeout}]),
     Ref = erlang:make_ref(),
     Target = util:to_end(To),
     Conf = #conf{
@@ -74,14 +75,12 @@ handle_call(_Request, State) ->
 handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
     case telex:get(Telex, '.see') of
 	{error, not_found} -> 
-	    log:info([?MODULE, irrelevant, Telex]), % !!! remove
 	    {ok, {Conf, State}};
 	{ok, Address_binaries} ->
 	    Dist = util:distance(Address, Target),
 	    Node = {Dist, Address},
 	    case sets:is_element(Node, Pinged) of % !!! command ids would make a better check
 		false ->
-		    log:info([?MODULE, not_seen, Address, Telex]), % !!! remove
 		    {ok, {Conf, State}};
 		true ->
 		    try 
@@ -89,12 +88,12 @@ handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=P
 			[{util:distance(Target, Addr), Addr} || Addr <- Addresses]
 		    of
 			Nodes ->
-			    log:info([?MODULE, pong, Node, Nodes]),
+			    ?INFO([pong, {from, Node}, {nodes, Nodes}]),
 			    State2 = ponged(Node, Nodes, State),
 			    continue(Conf, State2)
 		    catch 
 			_:Error ->
-			    log:info([?MODULE, bad_see, Address, Telex, Error, erlang:get_stacktrace()]),
+			    ?WARN([bad_see, {from, Address}, {telex, Telex}, {error, Error}, {trace, erlang:get_stacktrace()}]),
 			    {ok, {Conf, State}}
 		    end
 	    end
@@ -103,10 +102,10 @@ handle_event(_, State) ->
     {ok, State}.
 
 handle_info(giveup, {Conf, State}) ->
-    log:info([?MODULE, giveup, Conf, State]),
+    ?INFO([giveup, {state, {Conf, State}}]),
     remove_handler;
 handle_info({timeout, Node}, {Conf, #state{waiting=Waiting}=State}) ->
-    log:info([?MODULE, timeout, Node]),
+    ?INFO([timeout, {node, Node}]),
     State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
     continue(Conf, State2);
 handle_info(_Info, State) ->
@@ -142,8 +141,8 @@ ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
     {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
     Telex = {struct, [{'+end', util:end_to_hex(Target)}]},
     lists:foreach(
-      fun ({Dist, Address}=Node) -> 
-	      log:info([?MODULE, ping, Dist, Address]),
+      fun ({_Dist, Address}=Node) -> 
+	      ?INFO([ping, {node, Node}]),
 	      switch:send(Address, Telex),
 	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Node})
       end, 
@@ -165,8 +164,8 @@ ponged(Node, See, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged, ponged=Pon
 % return results to the caller	   
 return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
     {Nodes, _} = pq_sets:pop(Ponged, ?K),
-    log:info([?MODULE, returning, Nodes]),
     Result = [Address || {_Dist, Address} <- Nodes],
+    ?INFO([returning, {result, Result}]),
     Caller ! {dialed, Ref, Result}.
 
 % either continue to dial or return results

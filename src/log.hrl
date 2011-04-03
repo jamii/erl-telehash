@@ -1,0 +1,4 @@
+-define(LOG_PREFIX, [{module, ?MODULE}, {line, ?LINE}, {pid, self()}]).
+-define(INFO(Args), log:info(?LOG_PREFIX ++ Args)).
+-define(WARN(Args), log:warn(?LOG_PREFIX ++ Args)).
+-define(ERROR(Args), log:error(?LOG_PREFIX ++ Args)).

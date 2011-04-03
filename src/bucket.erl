@@ -10,6 +10,7 @@
 
 -include("types.hrl").
 -include("conf.hrl").
+-include("log.hrl").
 
 -export([empty/0, split/1, touched/5, seen/4, timedout/2, dialed/2, by_dist/2, last_touched/1, last_dialed/1]).
 
@@ -157,16 +158,16 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
     if
 	Lives + Stales < ?K ->
 	    % space left in live
-	    log:info([?MODULE, adding, Node, Bucket]),
+	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
 	    ok(add_node(Node#node{status=live}, Bucket));
 	(Lives < ?K) and (Stales > 0) ->
 	    % space left in live if we push something out of stale
-	    log:info([?MODULE, adding, Node, Bucket]),
+	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
 	    Bucket2 = drop_stale(Bucket),
 	    ok(add_node(Node#node{status=live}, Bucket2));
 	May_split and (Suffix /= []) ->
 	    % allowed to split the bucket to make space
-	    log:info([?MODULE, splitting, Node, Bucket]),
+	    ?INFO([splitting, {node, Node}, {bucket, Bucket}]),
 	    {split, {ok, BucketF}, {ok, BucketT}} = split(Bucket),
 	    [Bit | Suffix2] = Suffix,
 	    case Bit of
@@ -179,7 +180,7 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 	    end;
 	true ->
 	    % not allowed to split, will have to go in the cache
-	    log:info([?MODULE, caching, Node, Bucket]),
+	    ?INFO([caching, {node, Node}, {bucket, Bucket}]),
 	    ok(add_node(Node#node{status=cache}, bucket))
     end.
 
@@ -187,7 +188,7 @@ new_node(Address, Suffix, Time, Bucket, May_split) ->
 
 % this address has been verified as actually existing
 touched(Address, Suffix, Time, Bucket, May_split) ->
-    log:info([?MODULE, touching, Address, Bucket]),
+    ?INFO([touching, {address, Address}, {bucket, Bucket}]),
     case get_node(Address, Bucket) of
 	{ok, Node} ->
 	    case Node#node.status of
@@ -209,7 +210,7 @@ touched(Address, Suffix, Time, Bucket, May_split) ->
 
 % this address has been reported to exist by another node
 seen(Address, Time, Suffix, Bucket) ->
-    log:info([?MODULE, seeing, Address, Bucket]),
+    ?INFO([seeing, {address, Address}, {bucket, Bucket}]),
     case get_node(Address, Bucket) of
 	{ok, Node} ->
 	    case Node#node.status of
@@ -238,7 +239,7 @@ seen(Address, Time, Suffix, Bucket) ->
 
 % this address failed to reply in a timely manner
 timedout(Address, Bucket) ->
-    log:info([?MODULE, timing_out, Address, Bucket]),
+    ?INFO([timing_out, {address, Address}, {bucket, Bucket}]),
     case get_node(Address, Bucket) of
 	{ok, Node} ->
 	    case Node#node.status of
@@ -254,7 +255,7 @@ timedout(Address, Bucket) ->
 	    % wtf? we don't even know this node?
 	    % one way this could happen: 
 	    % send N1, sendN1, timedout N1, add N2 (pushing N1 out of stale), timedout N1 
-	    log:warn([?MODULE, unknown_node_timedout, Address, Bucket]),
+	    ?WARN([unknown_node_timedout, {address, Address}, {bucket, Bucket}]),
 	    ok(Bucket)
     end.
 

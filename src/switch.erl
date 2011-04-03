@@ -6,6 +6,7 @@
 
 -include("conf.hrl").
 -include("types.hrl").
+-include("log.hrl").
 
 -export([start_link/0, add_handler/2, add_sup_handler/2, send/2, recv/2, notify/1]).
 
@@ -52,13 +53,13 @@ handle_cast({send, #address{host=Host, port=Port}=Address, Telex}, #state{socket
     Telex2 = telex:set(Telex, '_to', util:address_to_binary(Address)),
     try gen_udp:send(Socket, Host, Port, telex:encode(Telex2)) of
 	ok ->
-	    log:info([?EVENT, send, Address, Telex2]),
+	    ?INFO([send, {address, Address}, {telex, Telex2}]),
 	    gen_event:notify(?EVENT, {send, Address, Telex2});
 	Error ->
-	    log:info([?EVENT, send_error, Address, Telex2, Error])
+	    ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}])
     catch
 	_:Error ->
-	    log:info([?EVENT, send_error, Address, Telex2, Error, erlang:get_stacktrace()])
+	    ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}, {trace, erlang:get_stacktrace()}])
     end,
     {noreply, State};
 handle_cast({recv, #address{}=Address, Packet}, State) -> 
@@ -87,11 +88,11 @@ code_change(_OldVsn, State, _Extra) ->
 handle_recv(Address, Packet) ->
     try telex:decode(Packet) of
 	Telex ->
-	    log:info([?EVENT, recv, Address, Telex]),
+	    ?INFO([recv, {address, Address}, {telex, Telex}]),
 	    gen_event:notify(?EVENT, {recv, Address, Telex})
     catch
 	error:{telex, _, _, _}=Error ->
-	    log:info([?EVENT, recv_error, Address, Packet, Error])
+	    ?WARN([recv_error, {address, Address}, {packet, Packet}, {error, Error}])
     end.
 
 % --- end ---
