@@ -50,7 +50,7 @@ dial(To, From, Timeout) ->
       ponged=pq_sets:empty(), 
       seen=sets:new()
      },
-    ok = switch:add_handler(?MODULE, {Conf, State}),
+    ok = switch:add_handler({?MODULE, Ref}, {Conf, State}),
     Ref.
 
 dial_sync(Target, Addresses, Timeout) ->
