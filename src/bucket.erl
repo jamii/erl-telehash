@@ -104,7 +104,7 @@ drop_stale(#bucket{nodes=Nodes, stale=Stale}=Bucket) ->
     Bucket#bucket{nodes=Nodes2, stale=Stale2}.
 
 % return most recently seen cache node, if any exist
-pop_cache_hi(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
+pop_cache_new(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
 	{_Key, #node{address=Address}=Node, Cache2} ->
 	    Nodes2 = gb_trees:delete(Address, Nodes),
@@ -114,7 +114,7 @@ pop_cache_hi(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
     end.
 
 % return the oldest live node
-peek_live_lo(#bucket{live=Live}) ->
+peek_live_old(#bucket{live=Live}) ->
     case pq_maps:peek_lo(Live) of
 	none -> none;
 	{_, Node} -> {ok, Node}
@@ -220,7 +220,7 @@ seen(Address, Time, Suffix, Bucket) ->
 	      last_seen = Time
 	     },
 	    Bucket2 = add_node(Node, Bucket),
-	    case peek_live_lo(Bucket) of
+	    case peek_live_old(Bucket) of
 		none -> ok(Bucket2);
 		{ok, Live_node} -> {node, Live_node, ok(Bucket2)}
 	    end
@@ -235,7 +235,7 @@ timedout(Address, Bucket) ->
 		live ->
 		    % mark as stale, return a cache node that might be a suitable replacement
 		    Bucket2 = update_node(Node#node{status=stale}, Bucket),
-		    pop_cache_hi(Bucket2);
+		    pop_cache_new(Bucket2);
 		_ -> 
 		    % if cache or stale already we don't care 
 		    ok(Bucket)
