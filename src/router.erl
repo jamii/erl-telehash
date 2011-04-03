@@ -161,11 +161,19 @@ empty_table(Self) ->
      ).
 
 refresh(Self, Table) ->
+    Now = now(),
     iter:foreach(
-      fun ({Prefix, _Bucket}) ->
-	      To = util:random_end(Prefix),
-	      From = nearest(?K, To, Table),
-	      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT)
+      fun ({Prefix, Bucket}) ->
+	      % has the bucket been dialed since the last refresh?
+	      Diff = timer:now_diff(Now, bucket:last_dialed(Bucket)) div 1000, % now_diff gives microseconds
+	      if 
+		  Diff > ?ROUTER_REFRESH_TIME ->
+		      To = util:random_end(Prefix),
+		      From = nearest(?K, To, Table),
+		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
+		  true ->
+		      ok
+	      end
       end,
       bit_tree:iter(util:to_bits(Self), Table)
      ),
