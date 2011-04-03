@@ -6,7 +6,7 @@
 -include("types.hrl").
 
 -export([address_to_binary/1, binary_to_address/1, binary_to_end/1, hex_to_end/1, end_to_hex/1, to_end/1, distance/2, to_bits/1]).
--export([ensure_started/1, set_nth/3, iter_to_list/1]).
+-export([ensure_started/1, set_nth/3]).
 
 % --- api --- 
 
@@ -49,13 +49,6 @@ to_bits(Bin) when is_bitstring(Bin) ->
     <<Bit:1, Bin2/bitstring>> = Bin,
     [(Bit>0) | to_bits(Bin2)].
 
-iter_to_list(Iter) ->
-    case Iter() of
-	done ->
-	    [];
-	{Head, Iter2} ->
-	    [Head | iter_to_list(Iter2)]
-    end.
 
 ensure_started(Module) ->
     case Module:start() of
