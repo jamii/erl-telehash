@@ -1,3 +1,11 @@
+% implements the bucket part of kademlia k-buckets
+% important points:
+% * each bucket should contain at most ?K nodes
+% * we should only ever report node addresses which we have personally confirmed
+% * responsive nodes should never be removed from buckets
+% * nodes should never be removed from buckets unless a suitable replacement exists
+% these make the router resilient to flooding, poisoning and network failure
+
 -module(bucket).
 
 -include("types.hrl").
