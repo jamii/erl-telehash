@@ -13,7 +13,7 @@
 
 -export([empty/0, touched/5, seen/4, timedout/2, nearest/3, last_touched/1]).
 
--define(K, ?DIAL_DEPTH).
+-define(K, ?REPLICATION).
 
 -record(node, {
 	  address, % node #address{} record

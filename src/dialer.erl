@@ -12,8 +12,8 @@
 -export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2, code_change/3]).
 
 % corresponds to k and alpha in kademlia paper
--define(K, ?DIAL_DEPTH).
--define(A, ?DIAL_BREADTH).
+-define(K, ?REPLICATION).
+-define(A, ?DIALER_BREADTH).
 
 -record(conf, {
 	  target, % the end to dial
@@ -23,7 +23,7 @@
 -record(state, {
 	  fresh, % nodes which have not yet been contacted
 	  pinged, % nodes which have been contacted and have not replied
-	  waiting, % nodes in pinged which were contacted less than ?DIAL_TIMEOUT ago
+	  waiting, % nodes in pinged which were contacted less than ?DIALER_PING_TIMEOUT ago
 	  ponged, % nodes which have been contacted and have replied
 	  seen % all nodes which have been seen 
 	 }). % invariant: pq_sets:size(waiting) = ?A or pq_sets:empty(fresh)
@@ -145,7 +145,7 @@ ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
       fun ({Dist, Address}=Node) -> 
 	      log:info([?MODULE, ping, Dist, Address]),
 	      switch:send(Address, Telex),
-	      erlang:send_after(?DIAL_TIMEOUT, self(), {timeout, Node})
+	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Node})
       end, 
       Nodes),
     Waiting2 = pq_sets:push(Nodes, Waiting),
