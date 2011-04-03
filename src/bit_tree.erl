@@ -28,13 +28,13 @@ empty(Size, Bucket) ->
 update(Fun, Bits, Self, Tree) when is_function(Fun), is_list(Bits), is_list(Self) ->
     update(Fun, Bits, {self, Self}, 0, Tree).
 
-update(Fun, Bits, Gap, Depth, #leaf{bucket=Bucket}) ->
-    Gap_size =
-	case Gap of
+update(Fun, Bits, Self, Depth, #leaf{bucket=Bucket}) ->
+    Gap =
+	case Self of
 	    {gap, G} -> G;
 	    {self, _} -> 0
 	end,
-    bucket_update_to_tree(Fun(Bits, Depth, Gap_size, Bucket));
+    bucket_update_to_tree(Fun(Bits, Depth, Gap, Bucket));
 update(Fun, Bits, Self, Depth, #branch{childF=ChildF, childT=ChildT}) ->
     [Next|Bits2] = Bits,
     Self2 =
