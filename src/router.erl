@@ -255,7 +255,10 @@ dialed(Address, Self, Table) ->
      ).
 
 nearest(N, End, Table) when N>=0 ->
-    iter:take(N, 
-	      iter:map(
-		fun (Bucket) -> bucket:by_dist(End, Bucket) end, 
-		bit_tree:iter(End, Table))).
+    Bits = util:to_bits(End),
+    iter:take(
+      N, 
+      iter:flatten(
+	iter:map(
+	  fun ({_Prefix, Bucket}) -> bucket:by_dist(End, Bucket) end, 
+	  bit_tree:iter(Bits, Table)))).

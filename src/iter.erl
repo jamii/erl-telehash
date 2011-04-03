@@ -2,7 +2,7 @@
 
 -module(iter).
 
--export([to_list/1, map/2, take/2, foreach/2]).
+-export([to_list/1, map/2, take/2, foreach/2, flatten/1]).
 
 to_list(Iter) ->
     case Iter() of
@@ -40,6 +40,21 @@ foreach(F, Iter) ->
 	    F(Head),
 	    foreach(F, Iter2)
     end.
-    
-    
 
+flatten(Iter) ->
+    flatten([], Iter).
+
+flatten([], Iter) ->
+    fun () ->
+	    case Iter() of
+		done ->
+		    done;
+		{List, Iter2} when is_list(List) ->
+		    Iter3 = flatten(List, Iter2),
+		    Iter3()
+	    end
+    end; 
+flatten([Elem|List], Iter) ->
+    fun () ->
+	    {Elem, flatten(List, Iter)}
+    end.
