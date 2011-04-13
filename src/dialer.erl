@@ -17,6 +17,7 @@
 -define(A, ?DIALER_BREADTH).
 
 -record(conf, {
+	  id, % ref used to identify messages aimed at us
 	  target, % the end to dial
 	  timeout, % the timeout for the entire dialing process
 	  ref, caller % reply details
@@ -36,6 +37,7 @@ dial(To, From, Timeout) ->
     Ref = erlang:make_ref(),
     Target = util:to_end(To),
     Conf = #conf{
+      id = erlang:make_ref(),
       target = Target,
       timeout = Timeout,
       ref = Ref,
@@ -64,8 +66,8 @@ dial_sync(Target, Addresses, Timeout) ->
 
 % --- gen_event callbacks ---
 
-init({#conf{timeout=Timeout}=Conf, State}) ->
-    erlang:send_after(Timeout, self(), giveup),
+init({#conf{timeout=Timeout, id=Id}=Conf, State}) ->
+    erlang:send_after(Timeout, self(), {giveup, Id}),
     State2 = ping_nodes(Conf, State),
     {ok, {Conf, State2}}.
 
@@ -101,10 +103,10 @@ handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=P
 handle_event(_, State) ->
     {ok, State}.
 
-handle_info(giveup, {Conf, State}) ->
+handle_info({giveup, Id}, {#conf{id=Id}=Conf, State}) ->
     ?INFO([giveup, {state, {Conf, State}}]),
     remove_handler;
-handle_info({timeout, Node}, {Conf, #state{waiting=Waiting}=State}) ->
+handle_info({timeout, Id, Node}, {#conf{id=Id}=Conf, #state{waiting=Waiting}=State}) ->
     ?INFO([timeout, {node, Node}]),
     State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
     continue(Conf, State2);
@@ -136,7 +138,7 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
      end).
 
 % contact nodes from fresh until the waiting list is full
-ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
+ping_nodes(#conf{target=Target, id=Id}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
     Num = ?A - pq_sets:size(Waiting),
     {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
     Telex = telex:end_signal(Target),
@@ -144,7 +146,7 @@ ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
       fun ({_Dist, Address}=Node) -> 
 	      ?INFO([ping, {node, Node}]),
 	      switch:send(Address, Telex),
-	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Node})
+	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Id, Node})
       end, 
       Nodes),
     Waiting2 = pq_sets:push(Nodes, Waiting),
