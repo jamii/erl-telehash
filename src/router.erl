@@ -26,7 +26,7 @@
 
 start(#address{}=Self) ->
     ?INFO([starting]),
-    State = #state{self=util:to_bits(Self), table=empty_table(Self)},
+    State = #state{self=util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
     ok = switch:add_handler(?MODULE, State).
 
 bootstrap(Addresses, Timeout) ->
@@ -61,9 +61,9 @@ handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
 		    Table = touched(From, Self, empty_table(Self)),
 		    % cant call add_handler from inside the same manager :(
 		    spawn_link(fun () -> dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT) end), 
-		    Table2 = refresh(Self, Table),
+		    refresh(Self, Table),
 		    ?INFO([bootstrap, finished, {self, Self}, {from, From}]),
-		    {ok, #state{self=Self, pinged=sets:new(), table=Table2}}
+		    {ok, #state{self=Self, pinged=sets:new(), table=Table}}
 	    catch 
 		_ ->
 		    ?WARN([bootstrap, bad_self, {self, Binary}, {from, From}]),
@@ -114,7 +114,7 @@ handle_event({dialed, End}, #state{self=Self, table=Table}=State) ->
     % record the dialing time
     ?INFO([dialed, {'end', End}]),
     Table2 = dialed(End, Self, Table),
-    {ok, ok, State#state{table=Table2}};
+    {ok, State#state{table=Table2}};
 handle_event(_, State) ->
     {ok, State}.
 
@@ -127,8 +127,8 @@ handle_info(giveup, #state{}=State) ->
     {ok, State};
 handle_info(refresh, #state{self=Self, table=Table}=State) ->
     ?INFO([refreshing_table]),
-    Table2 = refresh(Self, Table),
-    {ok, State#state{table=Table2}};
+    refresh(Self, Table),
+    {ok, State};
 handle_info({dialed, _, _}, State) ->
     % response from a bucket refresh, we don't care
     {ok, State};
@@ -147,7 +147,9 @@ handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=St
 	false ->
 	    % address already replied
 	    {ok, State}
-    end.
+    end;
+handle_info(_Info, State) ->
+    {ok, State}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -254,7 +256,7 @@ ping(To) ->
 dialed(Address, Self, Table) ->
     bit_tree:update(
       fun (_Suffix, _Depth, _Gap, Bucket) ->
-	      bucket:dialed(Address, Bucket)
+	      bucket:dialed(now(), Bucket)
       end,
       util:to_bits(Address),
       Self,

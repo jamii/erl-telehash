@@ -260,7 +260,7 @@ timedout(Address, Bucket) ->
     end.
 
 dialed(Time, Bucket) ->
-    Bucket#bucket{last_dialed=Time}.
+    ok(Bucket#bucket{last_dialed=Time}).
 
 by_dist(End, #bucket{live=Live, stale=Stale}) ->
     Nodes = pq_maps:to_list(Live) ++ pq_maps:to_list(Stale),
