@@ -6,8 +6,8 @@
 
 -export([start/1, bootstrap/2]).
 
--behaviour(gen_event).
--export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2, code_change/3]).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -define(K, ?REPLICATION).
 
@@ -27,31 +27,34 @@
 start(#address{}=Self) ->
     ?INFO([starting]),
     State = #state{self=util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
-    ok = switch:add_handler(?MODULE, State).
+    {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
 bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
-    ok = switch:add_handler(?MODULE, State),
-    Telex = telex:end_signal(util:random_end()),
-    lists:foreach(fun (Address) -> switch:send(Address, Telex) end, Addresses),
-    ok.
+    {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
-% --- gen_event callbacks ---
+% --- gen_server callbacks ---
 	 		 
 init(State) ->
+    switch:listen(),
     case State of
-	#bootstrap{timeout=Timeout} ->
+	#bootstrap{timeout=Timeout, addresses=Addresses} ->
+	    Telex = telex:end_signal(util:random_end()),
+	    lists:foreach(fun (Address) -> switch:send(Address, Telex) end, Addresses),
 	    erlang:send_after(Timeout, self(), giveup);
-	_ ->
+	#state{} ->
 	    ok
     end,
     {ok, State}.
 
-handle_call(_Request, State) ->
-    {ok, ok, State}.
+handle_call(_Call, _From, State) ->
+    {noreply, State}.
 
-handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
+handle_cast(_Cast, State) ->
+    {ok, State}.
+
+handle_info({switch, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Bootstrap) ->
     % bootstrapping, waiting to receive a message telling us our own address
     case {lists:member(From, Addresses), telex:get(Telex, '_to')} of
 	{true, {ok, Binary}} ->
@@ -59,20 +62,19 @@ handle_event({recv, From, Telex}, #bootstrap{addresses=Addresses}=Bootstrap) ->
 		End ->
 		    Self = util:to_bits(End),
 		    Table = touched(From, Self, empty_table(Self)),
-		    % cant call add_handler from inside the same manager :(
-		    spawn_link(fun () -> dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT) end), 
+		    dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT), 
 		    refresh(Self, Table),
-		    ?INFO([bootstrap, finished, {self, Self}, {from, From}]),
-		    {ok, #state{self=Self, pinged=sets:new(), table=Table}}
+		    ?INFO([bootstrap, finished, {self, Binary}, {from, From}]),
+		    {noreply, #state{self=Self, pinged=sets:new(), table=Table}}
 	    catch 
 		_ ->
 		    ?WARN([bootstrap, bad_self, {self, Binary}, {from, From}]),
-		    {ok, Bootstrap}
+		    {noreply, Bootstrap}
 	    end;
 	_ ->
-	    {ok, Bootstrap}
+	    {noreply, Bootstrap}
     end;
-handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
+handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     % this counts as a reply
     Pinged2 = sets:del_element(From, Pinged),
     % touched the sender
@@ -109,34 +111,31 @@ handle_event({recv, From, Telex}, #state{self=Self, pinged=Pinged, table=Table}=
 	_ -> 
 	    ok
     end,
-    {ok, State#state{pinged=Pinged2, table=Table2}};
-handle_event({dialed, End}, #state{self=Self, table=Table}=State) ->
+    {noreply, State#state{pinged=Pinged2, table=Table2}};
+handle_info({switch, {dialed, End}}, #state{self=Self, table=Table}=State) ->
     % record the dialing time
     ?INFO([dialed, {'end', End}]),
     Table2 = dialed(End, Self, Table),
-    {ok, State#state{table=Table2}};
-handle_event(_, State) ->
-    {ok, State}.
-
+    {noreply, State#state{table=Table2}};
 handle_info(giveup, #bootstrap{}=Bootstrap) ->
     % failed to bootstrap, die
     ?INFO([giveup, {state, Bootstrap}]),
-    remove_handler;
+    {stop, {shutdown, gaveup}, Bootstrap};
 handle_info(giveup, #state{}=State) ->
     % made it in time
-    {ok, State};
+    {noreply, State};
 handle_info(refresh, #state{self=Self, table=Table}=State) ->
     ?INFO([refreshing_table]),
     refresh(Self, Table),
-    {ok, State};
+    {noreply, State};
 handle_info({dialed, _, _}, State) ->
     % response from a bucket refresh, we don't care
-    {ok, State};
+    {noreply, State};
 handle_info({pinging, Address}, #state{pinged=Pinged}=State) ->
     % do this in a message to self to avoid some awkward control flow
     ?INFO([recording_ping, {address, Address}]),
     Pinged2 = sets:add_element(Address, Pinged),
-    {ok, State#state{pinged=Pinged2}};
+    {noreply, State#state{pinged=Pinged2}};
 handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     case lists:member(Address, Pinged) of
 	true ->
@@ -148,10 +147,13 @@ handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=St
 	    % address already replied
 	    {ok, State}
     end;
+handle_info({gen_event_EXIT, Handler, Reason}, State) ->
+    {stop, {shutdown, {deafened, Handler, Reason}}, State};
 handle_info(_Info, State) ->
-    {ok, State}.
+    {noreply, State}.
 
 terminate(_Reason, _State) ->
+    switch:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -187,8 +189,7 @@ refresh(Self, Table) ->
 		      ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
 		      To = util:random_end(Prefix),
 		      From = nearest(?K, To, Table),
-		      % cant call add_handler from inside the same manager :(
-		      spawn(fun () -> dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT) end);
+		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
 		  false ->
 		      ok
 	      end

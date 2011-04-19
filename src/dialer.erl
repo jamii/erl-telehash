@@ -9,15 +9,14 @@
 
 -export([dial/3, dial_sync/3]).
 
--behaviour(gen_event).
--export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2, code_change/3]).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 % corresponds to k and alpha in kademlia paper
 -define(K, ?REPLICATION).
 -define(A, ?DIALER_BREADTH).
 
 -record(conf, {
-	  id, % ref used to identify messages aimed at us
 	  target, % the end to dial
 	  timeout, % the timeout for the entire dialing process
 	  ref, caller % reply details
@@ -37,7 +36,6 @@ dial(To, From, Timeout) ->
     Ref = erlang:make_ref(),
     Target = util:to_end(To),
     Conf = #conf{
-      id = erlang:make_ref(),
       target = Target,
       timeout = Timeout,
       ref = Ref,
@@ -52,7 +50,7 @@ dial(To, From, Timeout) ->
       ponged=pq_sets:empty(), 
       seen=sets:new()
      },
-    ok = switch:add_handler({?MODULE, Ref}, {Conf, State}),
+    {ok, _Pid} = gen_server:start(?MODULE, {Conf, State}, []),
     Ref.
 
 dial_sync(Target, Addresses, Timeout) ->
@@ -64,26 +62,37 @@ dial_sync(Target, Addresses, Timeout) ->
 	    {error, timeout}
     end.
 
-% --- gen_event callbacks ---
+% --- gen_server callbacks ---
 
-init({#conf{timeout=Timeout, id=Id}=Conf, State}) ->
-    erlang:send_after(Timeout, self(), {giveup, Id}),
+init({#conf{timeout=Timeout}=Conf, State}) ->
+    switch:listen(),
+    erlang:send_after(Timeout, self(), giveup),
     State2 = ping_nodes(Conf, State),
     {ok, {Conf, State2}}.
 
-handle_call(_Request, State) ->
-    {ok, ok, State}.
+handle_call(_Call, _From, State) ->
+    {noreply, State}.
 
-handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
+handle_cast(_Cast, State) ->
+    {ok, State}.
+
+handle_info(giveup, {Conf, State}) ->
+    ?INFO([giveup, {state, {Conf, State}}]),
+    {stop, {shutdown, gaveup}, {Conf, State}};
+handle_info({timeout, Node}, {Conf, #state{waiting=Waiting}=State}) ->
+    ?INFO([timeout, {node, Node}]),
+    State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
+    continue(Conf, State2);
+handle_info({switch, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
     case telex:get(Telex, '.see') of
 	{error, not_found} -> 
-	    {ok, {Conf, State}};
+	    {noreply, {Conf, State}};
 	{ok, Address_binaries} ->
 	    Dist = util:distance(Address, Target),
 	    Node = {Dist, Address},
 	    case sets:is_element(Node, Pinged) of % !!! command ids would make a better check
 		false ->
-		    {ok, {Conf, State}};
+		    {noreply, {Conf, State}};
 		true ->
 		    try 
 			Addresses = lists:map(fun util:binary_to_address/1, Address_binaries),
@@ -96,24 +105,17 @@ handle_event({recv, Address, Telex}, {#conf{target=Target}=Conf, #state{pinged=P
 		    catch 
 			_:Error ->
 			    ?WARN([bad_see, {from, Address}, {telex, Telex}, {error, Error}, {trace, erlang:get_stacktrace()}]),
-			    {ok, {Conf, State}}
+			    {noreply, {Conf, State}}
 		    end
 	    end
     end;
-handle_event(_, State) ->
-    {ok, State}.
-
-handle_info({giveup, Id}, {#conf{id=Id}=Conf, State}) ->
-    ?INFO([giveup, {state, {Conf, State}}]),
-    remove_handler;
-handle_info({timeout, Id, Node}, {#conf{id=Id}=Conf, #state{waiting=Waiting}=State}) ->
-    ?INFO([timeout, {node, Node}]),
-    State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
-    continue(Conf, State2);
+handle_info({gen_event_EXIT, Handler, Reason}, {Conf, State}) ->
+    {stop, {shutdown, {deafened, Handler, Reason}}, {Conf, State}};
 handle_info(_Info, State) ->
-    {ok, State}.
+    {noreply, State}.
 
 terminate(_Reason, _State) ->
+    switch:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -138,7 +140,7 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
      end).
 
 % contact nodes from fresh until the waiting list is full
-ping_nodes(#conf{target=Target, id=Id}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
+ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
     Num = ?A - pq_sets:size(Waiting),
     {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
     Telex = telex:end_signal(Target),
@@ -146,7 +148,7 @@ ping_nodes(#conf{target=Target, id=Id}, #state{fresh=Fresh, waiting=Waiting, pin
       fun ({_Dist, Address}=Node) -> 
 	      ?INFO([ping, {node, Node}]),
 	      switch:send(Address, Telex),
-	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Id, Node})
+	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Node})
       end, 
       Nodes),
     Waiting2 = pq_sets:push(Nodes, Waiting),
@@ -171,16 +173,16 @@ return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
     Caller ! {dialed, Ref, Result}.
 
 % either continue to dial or return results
-% meant for use at the end of a gen_event callback
+% meant for use at the end of a gen_eventcallback
 continue(Conf, State) ->
     case finished(State) of
 	true ->
 	    switch:notify({dialed, Conf#conf.target}),
 	    return(Conf, State),
-	    remove_handler;
+	    {stop, {shutdown, finished}, {Conf, State}};
 	false ->
 	    State2 = ping_nodes(Conf, State),
-	    {ok, {Conf, State2}}
+	    {noreply, {Conf, State2}}
     end.
 
 % --- end ---

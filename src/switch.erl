@@ -8,7 +8,7 @@
 -include("types.hrl").
 -include("log.hrl").
 
--export([start_link/0, add_handler/2, add_sup_handler/2, send/2, recv/2, notify/1]).
+-export([start_link/0, listen/0, deafen/0, send/2, recv/2, notify/1]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -16,6 +16,7 @@
 -record(state, {socket}).
 -define(EVENT, switch_event).
 -define(SERVER, switch_server).
+-define(HANDLER, switch_handler).
 
 % --- api ---
 
@@ -24,11 +25,11 @@ start_link() ->
     {ok, Gen_server} = gen_server:start_link({local, ?SERVER}, ?MODULE, [], []),
     {ok, Gen_event, Gen_server}.
 
-add_handler(Module, Args) ->
-    gen_event:add_handler(?EVENT, Module, Args).
+listen() ->
+    gen_event:add_sup_handler(?EVENT, {?HANDLER, self()}, self()).
 
-add_sup_handler(Module, Args) ->
-    gen_event:add_sup_handler(?EVENT, Module, Args).
+deafen() ->
+    gen_event:delete_handler(?EVENT, {?HANDLER, self()}, deafen).
 
 send(#address{}=Address, Telex) ->
     gen_server:cast(?SERVER, {send, Address, Telex}).
@@ -47,7 +48,7 @@ init([]) ->
     {ok, #state{socket=Socket}}.
 
 handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
+    {noreply, State}.
 
 handle_cast({send, #address{host=Host, port=Port}=Address, Telex}, #state{socket=Socket}=State) ->
     Telex2 = telex:set(Telex, '_to', util:address_to_binary(Address)),
