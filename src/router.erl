@@ -235,7 +235,7 @@ timedout(Address, Self, Table) ->
       fun (_Suffix, _Depth, _Gap, Bucket) ->
 	      case bucket:timedout(Address, Bucket) of
 		  {node, Node, Update} ->
-		      % try to touch this node
+		      % try to touch this node, might be suitable replacement
 		      ping(Node),
 		      Update;
 		  Update ->
@@ -255,7 +255,8 @@ ping(To) ->
     Telex = telex:end_signal(util:random_end()),
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
-    switch:send(To, Telex).
+    switch:send(To, Telex),
+    erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, Address}).
 
 dialed(Address, Self, Table) ->
     bit_tree:update(
