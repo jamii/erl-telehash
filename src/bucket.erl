@@ -33,157 +33,6 @@
 	  cache % potential nodes which we have not yet verified 
 	 }). % invariant: pq_maps:size(live) + pq_maps:size(stale) <= ?K
 
-% --- internal functions handling the nodes -> live/stale/cache mapping ---
-
-empty() ->
-    #bucket{
-       last_dialed = never,
-       nodes = gb_trees:empty(),
-       live = pq_maps:empty(),
-       stale = pq_maps:empty(),
-       cache = pq_maps:empty()
-      }.
-
-% assumes Node does not already exist in Bucket, crashes otherwise
-add_node(#node{address=Address, status=Status, last_seen=Last_seen}=Node, 
-	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}=Bucket) ->
-    Nodes2 = gb_trees:insert(Address, {Status, Last_seen}, Nodes),
-    case Status of
-	live ->
-	    Live2 = pq_maps:push_one({Last_seen, Address}, Node, Live),
-	    Bucket#bucket{nodes=Nodes2, live=Live2};
-	stale ->
-	    Stale2 = pq_maps:push_one({Last_seen, Address}, Node, Stale),
-	    Bucket#bucket{nodes=Nodes2, stale=Stale2};
-	cache ->
-	    Cache2 = pq_maps:push_one({Last_seen, Address}, Node, Cache),
-	    Bucket#bucket{nodes=Nodes2, cache=Cache2}
-    end.
-    
-% assumes Node already exists in Bucket, crashes otherwise
-del_node(#node{address=Address}, Bucket) ->
-    del_node(Address, Bucket);
-del_node(Address,
-	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}=Bucket) ->
-    {Status, Last_seen} = gb_trees:get(Address, Nodes),
-    Nodes2 = gb_trees:delete(Address, Nodes),
-    case Status of
-	live ->
-	    Live2 = pq_maps:delete({Last_seen, Address}, Live),
-	    Bucket#bucket{nodes=Nodes2, live=Live2};
-	stale ->
-	    Stale2 = pq_maps:delete({Last_seen, Address}, Stale),
-	    Bucket#bucket{nodes=Nodes2, stale=Stale2};
-	cache ->
-	    Cache2 = pq_maps:delete({Last_seen, Address}, Cache),
-	    Bucket#bucket{nodes=Nodes2, cache=Cache2}
-    end.
-
-% assumes Node already exists in Bucket, crashes otherwise
-update_node(Node, Bucket) ->
-    add_node(Node, del_node(Node, Bucket)).
-
-get_node(Address, 
-	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}) ->
-    case gb_trees:lookup(Address, Nodes) of
-	{value, {Status, Last_seen}} ->
-	    case Status of 
-		live ->
-		    {ok, pq_maps:get({Last_seen, Address}, Live)};
-		stale ->
-		    {ok, pq_maps:get({Last_seen, Address}, Stale)};
-		cache ->
-		    {ok, pq_maps:get({Last_seen, Address}, Cache)}
-	    end;
-	none -> 
-	    none
-    end.
-
-to_list(#bucket{live=Live, stale=Stale, cache=Cache}) ->
-    pq_maps:values(Live) ++ pq_maps:values(Stale) ++ pq_maps:values(Cache).
-
-from_list(Nodes) ->
-    lists:foldl(fun add_node/2, empty(), Nodes).
-
-sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
-    {pq_maps:size(Live), pq_maps:size(Stale), pq_maps:size(Cache)}.
-
-% drop the oldest stale node, crashes if none exist
-drop_stale(#bucket{nodes=Nodes, stale=Stale}=Bucket) ->
-    {_Key, #node{address=Address}, Stale2} = pq_maps:pop_hi(Stale),
-    Nodes2 = gb_trees:delete(Address, Nodes),
-    Bucket#bucket{nodes=Nodes2, stale=Stale2}.
-
-% return most recently seen cache node, if any exist
-pop_cache_new(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
-    case pq_maps:pop_hi(Cache) of
-	{_Key, #node{address=Address}=Node, Cache2} ->
-	    Nodes2 = gb_trees:delete(Address, Nodes),
-	    {node, Node, ok(Bucket#bucket{nodes=Nodes2, cache=Cache2})};
-	false ->
-	    ok(Bucket)
-    end.
-
-% return the oldest live node
-peek_live_old(#bucket{live=Live}) ->
-    case pq_maps:peek_lo(Live) of
-	none -> none;
-	{_, Node} -> {ok, Node}
-    end.
-	     		
-% --- functions maintaining the bucket invariants ---
-
-% response format for bit_tree
-ok(Bucket) ->
-    {Lives, Stales, _} = sizes(Bucket),
-    {ok, Lives + Stales, Bucket}.
-
-% response format for bit_tree
-split(Bucket) ->
-    Nodes = to_list(Bucket),
-    NodesF = [Node#node{suffix=Suffix2} || #node{suffix=[false|Suffix2]}=Node <- Nodes],
-    NodesT = [Node#node{suffix=Suffix2} || #node{suffix=[true|Suffix2]}=Node <- Nodes],
-    {split, ok(from_list(NodesF)), ok(from_list(NodesT))}.
-
-% assumes Address is not already in Bucket, otherwise crashes
-new_node(Address, Suffix, Time, Bucket, May_split) ->
-    Node = #node{
-      address = Address,
-      'end' = util:to_end(Address),
-      suffix = Suffix,
-      status = undefined,
-      last_seen = Time
-     },
-    {Lives, Stales, _} = sizes(Bucket),
-    if
-	Lives + Stales < ?K ->
-	    % space left in live
-	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
-	    ok(add_node(Node#node{status=live}, Bucket));
-	(Lives < ?K) and (Stales > 0) ->
-	    % space left in live if we push something out of stale
-	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
-	    Bucket2 = drop_stale(Bucket),
-	    ok(add_node(Node#node{status=live}, Bucket2));
-	May_split and (Suffix /= []) ->
-	    % allowed to split the bucket to make space
-	    ?INFO([splitting, {node, Node}, {bucket, Bucket}]),
-	    {split, {ok, BucketF}, {ok, BucketT}} = split(Bucket),
-	    [Bit | Suffix2] = Suffix,
-	    case Bit of
-		false ->
-		    BucketF2 = new_node(Address, Suffix2, Time, BucketF, May_split),
-		    {split, BucketF2, BucketT};
-		true ->
-		    BucketT2 = new_node(Address, Suffix2, Time, BucketT, May_split),
-		    {split, BucketF, BucketT2}
-	    end;
-	true ->
-	    % not allowed to split, will have to go in the cache
-	    ?INFO([caching, {node, Node}, {bucket, Bucket}]),
-	    ok(add_node(Node#node{status=cache}, bucket))
-    end.
-
 % --- api ---
 
 % this address has been verified as actually existing
@@ -281,3 +130,156 @@ last_touched(#bucket{live=Live, stale=Stale}) ->
 
 last_dialed(Bucket) ->
     Bucket#bucket.last_dialed.
+
+% --- functions maintaining the bucket invariants ---
+
+% response format for bit_tree
+ok(Bucket) ->
+    {Lives, Stales, _} = sizes(Bucket),
+    {ok, Lives + Stales, Bucket}.
+
+% response format for bit_tree
+split(Bucket) ->
+    Nodes = to_list(Bucket),
+    NodesF = [Node#node{suffix=Suffix2} || #node{suffix=[false|Suffix2]}=Node <- Nodes],
+    NodesT = [Node#node{suffix=Suffix2} || #node{suffix=[true|Suffix2]}=Node <- Nodes],
+    {split, ok(from_list(NodesF)), ok(from_list(NodesT))}.
+
+% assumes Address is not already in Bucket, otherwise crashes
+new_node(Address, Suffix, Time, Bucket, May_split) ->
+    Node = #node{
+      address = Address,
+      'end' = util:to_end(Address),
+      suffix = Suffix,
+      status = undefined,
+      last_seen = Time
+     },
+    {Lives, Stales, _} = sizes(Bucket),
+    if
+	Lives + Stales < ?K ->
+	    % space left in live
+	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
+	    ok(add_node(Node#node{status=live}, Bucket));
+	(Lives < ?K) and (Stales > 0) ->
+	    % space left in live if we push something out of stale
+	    ?INFO([adding, {node, Node}, {bucket, Bucket}]),
+	    Bucket2 = drop_stale(Bucket),
+	    ok(add_node(Node#node{status=live}, Bucket2));
+	May_split and (Suffix /= []) ->
+	    % allowed to split the bucket to make space
+	    ?INFO([splitting, {node, Node}, {bucket, Bucket}]),
+	    {split, {ok, BucketF}, {ok, BucketT}} = split(Bucket),
+	    [Bit | Suffix2] = Suffix,
+	    case Bit of
+		false ->
+		    BucketF2 = new_node(Address, Suffix2, Time, BucketF, May_split),
+		    {split, BucketF2, BucketT};
+		true ->
+		    BucketT2 = new_node(Address, Suffix2, Time, BucketT, May_split),
+		    {split, BucketF, BucketT2}
+	    end;
+	true ->
+	    % not allowed to split, will have to go in the cache
+	    ?INFO([caching, {node, Node}, {bucket, Bucket}]),
+	    ok(add_node(Node#node{status=cache}, bucket))
+    end.
+
+% --- internal functions handling the (nodes -> live/stale/cache) mapping ---
+
+empty() ->
+    #bucket{
+       last_dialed = never,
+       nodes = gb_trees:empty(),
+       live = pq_maps:empty(),
+       stale = pq_maps:empty(),
+       cache = pq_maps:empty()
+      }.
+
+% assumes Node does not already exist in Bucket, crashes otherwise
+add_node(#node{address=Address, status=Status, last_seen=Last_seen}=Node, 
+	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}=Bucket) ->
+    Nodes2 = gb_trees:insert(Address, {Status, Last_seen}, Nodes),
+    case Status of
+	live ->
+	    Live2 = pq_maps:push_one({Last_seen, Address}, Node, Live),
+	    Bucket#bucket{nodes=Nodes2, live=Live2};
+	stale ->
+	    Stale2 = pq_maps:push_one({Last_seen, Address}, Node, Stale),
+	    Bucket#bucket{nodes=Nodes2, stale=Stale2};
+	cache ->
+	    Cache2 = pq_maps:push_one({Last_seen, Address}, Node, Cache),
+	    Bucket#bucket{nodes=Nodes2, cache=Cache2}
+    end.
+    
+% assumes Node already exists in Bucket, crashes otherwise
+del_node(#node{address=Address}, Bucket) ->
+    del_node(Address, Bucket);
+del_node(Address,
+	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}=Bucket) ->
+    {Status, Last_seen} = gb_trees:get(Address, Nodes),
+    Nodes2 = gb_trees:delete(Address, Nodes),
+    case Status of
+	live ->
+	    Live2 = pq_maps:delete({Last_seen, Address}, Live),
+	    Bucket#bucket{nodes=Nodes2, live=Live2};
+	stale ->
+	    Stale2 = pq_maps:delete({Last_seen, Address}, Stale),
+	    Bucket#bucket{nodes=Nodes2, stale=Stale2};
+	cache ->
+	    Cache2 = pq_maps:delete({Last_seen, Address}, Cache),
+	    Bucket#bucket{nodes=Nodes2, cache=Cache2}
+    end.
+
+% assumes Node already exists in Bucket, crashes otherwise
+update_node(Node, Bucket) ->
+    add_node(Node, del_node(Node, Bucket)).
+
+get_node(Address, 
+	 #bucket{nodes=Nodes, live=Live, stale=Stale, cache=Cache}) ->
+    case gb_trees:lookup(Address, Nodes) of
+	{value, {Status, Last_seen}} ->
+	    case Status of 
+		live ->
+		    {ok, pq_maps:get({Last_seen, Address}, Live)};
+		stale ->
+		    {ok, pq_maps:get({Last_seen, Address}, Stale)};
+		cache ->
+		    {ok, pq_maps:get({Last_seen, Address}, Cache)}
+	    end;
+	none -> 
+	    none
+    end.
+
+to_list(#bucket{live=Live, stale=Stale, cache=Cache}) ->
+    pq_maps:values(Live) ++ pq_maps:values(Stale) ++ pq_maps:values(Cache).
+
+from_list(Nodes) ->
+    lists:foldl(fun add_node/2, empty(), Nodes).
+
+sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
+    {pq_maps:size(Live), pq_maps:size(Stale), pq_maps:size(Cache)}.
+
+% drop the oldest stale node, crashes if none exist
+drop_stale(#bucket{nodes=Nodes, stale=Stale}=Bucket) ->
+    {_Key, #node{address=Address}, Stale2} = pq_maps:pop_hi(Stale),
+    Nodes2 = gb_trees:delete(Address, Nodes),
+    Bucket#bucket{nodes=Nodes2, stale=Stale2}.
+
+% return most recently seen cache node, if any exist
+pop_cache_new(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
+    case pq_maps:pop_hi(Cache) of
+	{_Key, #node{address=Address}=Node, Cache2} ->
+	    Nodes2 = gb_trees:delete(Address, Nodes),
+	    {node, Node, ok(Bucket#bucket{nodes=Nodes2, cache=Cache2})};
+	false ->
+	    ok(Bucket)
+    end.
+
+% return the oldest live node
+peek_live_old(#bucket{live=Live}) ->
+    case pq_maps:peek_lo(Live) of
+	none -> none;
+	{_, Node} -> {ok, Node}
+    end.
+	     	    
+% --- end ---
