@@ -172,7 +172,7 @@ empty_table(Self) ->
 	      bit_tree:update(Split, Self, Self, Tree)
       end,
       bit_tree:empty(0, bucket:empty()),
-      lists:seq(1, ?END_BITS) % !!! probably not right first time
+      lists:seq(1, ?END_BITS)
      ).
 
 needs_refresh(Bucket, Now) ->
