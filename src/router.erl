@@ -1,3 +1,6 @@
+% router manages the interactions between kademlia routing tables and the outside world
+% the logic for the tables themselves is in bit_tree and bucket
+
 -module(router).
 
 -include("types.hrl").
