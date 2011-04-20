@@ -39,6 +39,10 @@ bootstrap(Addresses, Timeout) ->
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
+nearest(N, End, Timeout) ->
+    {ok, Nearest} = gen_server:call(?MODULE, {nearest, N, End}, Timeout),
+    Nearest.
+
 % --- gen_server callbacks ---
 	 		 
 init(State) ->
@@ -53,6 +57,8 @@ init(State) ->
     end,
     {ok, State}.
 
+handle_call({nearest, N, End}, _From, #state{table=Table}=State) ->
+    {reply, get_nearest(N, End, Table), State};
 handle_call(_Call, _From, State) ->
     {noreply, State}.
 
@@ -193,7 +199,7 @@ refresh(Self, Table) ->
 		  true ->
 		      ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
 		      To = util:random_end(Prefix),
-		      From = nearest(?K, To, Table),
+		      From = get_nearest(?K, To, Table),
 		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
 		  false ->
 		      ok
@@ -250,7 +256,7 @@ timedout(Address, Self, Table) ->
      ).
     
 see(To, End, Table) ->
-    Telex = telex:see_command(nearest(?K, End, Table)),
+    Telex = telex:see_command(get_nearest(?K, End, Table)),
     switch:send(To, Telex).
 
 ping(To) ->
@@ -270,7 +276,7 @@ dialed(Address, Self, Table) ->
       Table
      ).
 
-nearest(N, End, Table) when N>=0 ->
+get_nearest(N, End, Table) when N>=0 ->
     Bits = util:to_bits(End),
     iter:take(
       N, 
