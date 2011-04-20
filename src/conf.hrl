@@ -10,3 +10,4 @@
 -define(ROUTER_REFRESH_TIME, 60*60*1000). % one hour
 -define(ROUTER_PING_TIMEOUT, 1000).
 -define(ROUTER_DIAL_TIMEOUT, 10000).
+-define(TELEHASH_ORG, #address{host="208.68.163.247", port=42424}).

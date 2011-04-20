@@ -7,7 +7,7 @@
 -include("conf.hrl").
 -include("log.hrl").
 
--export([start/1, bootstrap/2]).
+-export([start/1, bootstrap/0, bootstrap/2, nearest/3]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -32,6 +32,8 @@ start(#address{}=Self) ->
     State = #state{self=util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
+bootstrap() ->
+    bootstrap([?TELEHASH_ORG], 10000).
 bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
