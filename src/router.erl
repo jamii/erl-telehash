@@ -148,7 +148,7 @@ handle_info({pinging, Address}, #state{pinged=Pinged}=State) ->
     Pinged2 = sets:add_element(Address, Pinged),
     {noreply, State#state{pinged=Pinged2}};
 handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
-    case lists:member(Address, Pinged) of
+    case sets:is_element(Address, Pinged) of
 	true ->
 	    % ping timedout
 	    ?INFO([timeout, {address, Address}]),
