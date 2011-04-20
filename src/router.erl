@@ -256,7 +256,7 @@ ping(To) ->
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
     switch:send(To, Telex),
-    erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, Address}).
+    erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, To}).
 
 dialed(Address, Self, Table) ->
     bit_tree:update(
