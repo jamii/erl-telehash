@@ -217,9 +217,9 @@ seen(Address, Self, Table) ->
     bit_tree:update(
       fun (Suffix, _Depth, _Gap, Bucket) ->
 	      case bucket:seen(Address, Suffix, now(), Bucket) of
-		  {node, Node, Update} ->
+		  {ping, Address2, Update} ->
 		      % check if this node is stale
-		      ping(Node),
+		      ping(Address2),
 		      Update;
 		  Update ->
 		      Update
@@ -234,9 +234,9 @@ timedout(Address, Self, Table) ->
     bit_tree:update(
       fun (_Suffix, _Depth, _Gap, Bucket) ->
 	      case bucket:timedout(Address, Bucket) of
-		  {node, Node, Update} ->
+		  {ping, Address2, Update} ->
 		      % try to touch this node, might be suitable replacement
-		      ping(Node),
+		      ping(Address2),
 		      Update;
 		  Update ->
 		      Update

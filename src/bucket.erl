@@ -82,7 +82,7 @@ seen(Address, Time, Suffix, Bucket) ->
 	    Bucket2 = add_node(Node, Bucket),
 	    case peek_live_old(Bucket) of
 		none -> ok(Bucket2);
-		{ok, Live_node} -> {node, Live_node, ok(Bucket2)}
+		{ok, Live_node} -> {ping, Live_node#node.address, ok(Bucket2)}
 	    end
     end.
 
@@ -270,7 +270,7 @@ pop_cache_new(#bucket{nodes=Nodes, cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
 	{_Key, #node{address=Address}=Node, Cache2} ->
 	    Nodes2 = gb_trees:delete(Address, Nodes),
-	    {node, Node, ok(Bucket#bucket{nodes=Nodes2, cache=Cache2})};
+	    {ping, Node#node.address, ok(Bucket#bucket{nodes=Nodes2, cache=Cache2})};
 	false ->
 	    ok(Bucket)
     end.
