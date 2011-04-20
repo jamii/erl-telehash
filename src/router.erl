@@ -153,10 +153,10 @@ handle_info({timeout, Address}, #state{self=Self, pinged=Pinged, table=Table}=St
 	    % ping timedout
 	    ?INFO([timeout, {address, Address}]),
 	    Table2 = timedout(Address, Self, Table),
-	    {ok, State#state{table=Table2}};
+	    {noreply, State#state{table=Table2}};
 	false ->
 	    % address already replied
-	    {ok, State}
+	    {noreply, State}
     end;
 handle_info({gen_event_EXIT, Handler, Reason}, State) ->
     {stop, {shutdown, {deafened, Handler, Reason}}, State};
