@@ -1,7 +1,7 @@
 % router manages the interactions between kademlia routing tables and the outside world
 % the logic for the tables themselves is in bit_tree and bucket
 
--module(router).
+-module(th_router).
 
 -include("types.hrl").
 -include("conf.hrl").
@@ -29,7 +29,7 @@
 
 start(#address{}=Self) ->
     ?INFO([starting]),
-    State = #state{self=util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
+    State = #state{self=th_util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
 bootstrap() ->
@@ -46,11 +46,11 @@ nearest(N, End, Timeout) ->
 % --- gen_server callbacks ---
 	 		 
 init(State) ->
-    switch:listen(),
+    th_switch:listen(),
     case State of
 	#bootstrap{timeout=Timeout, addresses=Addresses} ->
-	    Telex = telex:end_signal(util:random_end()),
-	    lists:foreach(fun (Address) -> switch:send(Address, Telex) end, Addresses),
+	    Telex = th_telex:end_signal(th_util:random_end()),
+	    lists:foreach(fun (Address) -> th_switch:send(Address, Telex) end, Addresses),
 	    erlang:send_after(Timeout, self(), giveup);
 	#state{} ->
 	    ok
@@ -67,13 +67,13 @@ handle_cast(_Cast, State) ->
 
 handle_info({switch, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Bootstrap) ->
     % bootstrapping, waiting to receive a message telling us our own address
-    case {lists:member(From, Addresses), telex:get(Telex, '_to')} of
+    case {lists:member(From, Addresses), th_telex:get(Telex, '_to')} of
 	{true, {ok, Binary}} ->
-	    try util:to_end(util:binary_to_address(Binary)) of
+	    try th_util:to_end(th_util:binary_to_address(Binary)) of
 		End ->
-		    Self = util:to_bits(End),
+		    Self = th_util:to_bits(End),
 		    Table = touched(From, Self, empty_table(Self)),
-		    dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT), 
+		    th_dialer:dial(End, [From], ?ROUTER_DIAL_TIMEOUT),
 		    refresh(Self, Table),
 		    ?INFO([bootstrap, finished, {self, Binary}, {from, From}]),
 		    {noreply, #state{self=Self, pinged=sets:new(), table=Table}}
@@ -94,9 +94,9 @@ handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, tabl
     Table2 = touched(From, Self, Table),
     % maybe seen some nodes
     Table3 =
-	case telex:get(Telex, '.see') of
+	case th_telex:get(Telex, '.see') of
 	    {ok, Binaries} ->
-		try [util:binary_to_address(Bin) || Bin <- Binaries] of
+		try [th_util:binary_to_address(Bin) || Bin <- Binaries] of
 		    Addresses ->
 			?INFO([seen, {nodes, Addresses}, {from, From}]),
 			lists:foldl(fun (Address, Table_acc) -> seen(Address, Self, Table_acc) end, Table2, Addresses)
@@ -109,9 +109,9 @@ handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, tabl
 		Table2
 	end,
     % maybe send some nodes back
-    case telex:get(Telex, '+end') of
+    case th_telex:get(Telex, '+end') of
 	{ok, Hex} ->
-	    try util:hex_to_end(Hex) of
+	    try th_util:hex_to_end(Hex) of
 		End ->
 		    ?INFO([see, {'end', End}, {from, From}]),
 		    see(From, End, Table3)
@@ -164,7 +164,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    switch:deafen(),
+    th_switch:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -174,17 +174,17 @@ code_change(_OldVsn, State, _Extra) ->
 
 empty_table(Self) ->
     % pre-split buckets containing Self, so that refreshes hit a useful number of buckets
-    Split = fun (_, _, _, Bucket) -> bucket:split(Bucket) end,
+    Split = fun (_, _, _, Bucket) -> th_bucket:split(Bucket) end,
     lists:foldl(
       fun (_, Tree) ->
-	      bit_tree:update(Split, Self, Self, Tree)
+	      th_bit_tree:update(Split, Self, Self, Tree)
       end,
-      bit_tree:empty(0, bucket:empty()),
+      th_bit_tree:empty(0, th_bucket:empty()),
       lists:seq(1, ?END_BITS)
      ).
 
 needs_refresh(Bucket, Now) ->
-    case bucket:last_dialed(Bucket) of
+    case th_bucket:last_dialed(Bucket) of
 	never -> 
 	    true;
 	Last -> 
@@ -193,94 +193,94 @@ needs_refresh(Bucket, Now) ->
 
 refresh(Self, Table) ->
     Now = now(),
-    iter:foreach(
-      fun ({Prefix, Bucket}) ->
-	      case needs_refresh(Bucket, Now) of
-		  true ->
-		      ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
-		      To = util:random_end(Prefix),
-		      From = get_nearest(?K, To, Table),
-		      dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
-		  false ->
-		      ok
-	      end
-      end,
-      bit_tree:iter(Self, Table)
-     ),
+    th_iter:foreach(
+         fun ({Prefix, Bucket}) ->
+	         case needs_refresh(Bucket, Now) of
+		     true ->
+		         ?INFO([refreshing_bucket, {prefix, Prefix}, {bucket, Bucket}]),
+		         To = th_util:random_end(Prefix),
+		         From = get_nearest(?K, To, Table),
+		         th_dialer:dial(To, From, ?ROUTER_DIAL_TIMEOUT);
+		     false ->
+		         ok
+	         end
+         end,
+         th_bit_tree:iter(Self, Table)
+        ),
     erlang:send_after(?ROUTER_REFRESH_TIME, self(), refresh),
     ok.
 
 touched(Address, Self, Table) ->
-    bit_tree:update(
-      fun (Suffix, _Depth, Gap, Bucket) ->
-	      May_split = (Gap < ?K), % !!! or (Depth < ?ROUTER_TABLE_EXPANSION)
-	      bucket:touched(Address, Suffix, now(), Bucket, May_split)
-      end,
-      util:to_bits(Address),
-      Self,
-      Table
-     ).
+    th_bit_tree:update(
+         fun (Suffix, _Depth, Gap, Bucket) ->
+	         May_split =  (Gap < ?K), % !!! or (Depth < ?ROUTER_TABLE_EXPANSION)
+	         th_bucket:touched(Address, Suffix, now(), Bucket, May_split)
+         end,
+         th_util:to_bits(Address),
+         Self,
+         Table
+        ).
 
 seen(Address, Self, Table) ->
-    bit_tree:update(
-      fun (Suffix, _Depth, _Gap, Bucket) ->
-	      case bucket:seen(Address, Suffix, now(), Bucket) of
-		  {ping, Address2, Update} ->
-		      % check if this node is stale
-		      ping(Address2),
-		      Update;
-		  Update ->
-		      Update
-	      end
-      end,
-      util:to_bits(Address),
-      Self,
-      Table
-     ).
+    th_bit_tree:update(
+         fun (Suffix, _Depth, _Gap, Bucket) ->
+	         case th_bucket:seen(Address, Suffix, now(), Bucket) of
+		     {ping, Address2, Update} ->
+		         % check if this node is stale
+		         ping(Address2),
+		         Update;
+		     Update ->
+		         Update
+	         end
+         end,
+         th_util:to_bits(Address),
+         Self,
+         Table
+        ).
 
 timedout(Address, Self, Table) ->
-    bit_tree:update(
-      fun (_Suffix, _Depth, _Gap, Bucket) ->
-	      case bucket:timedout(Address, Bucket) of
-		  {ping, Address2, Update} ->
-		      % try to touch this node, might be suitable replacement
-		      ping(Address2),
-		      Update;
-		  Update ->
-		      Update
-	      end
-      end,
-      util:to_bits(Address),
-      Self,
-      Table
-     ).
+    th_bit_tree:update(
+         fun (_Suffix, _Depth, _Gap, Bucket) ->
+	         case th_bucket:timedout(Address, Bucket) of
+		     {ping, Address2, Update} ->
+		         % try to touch this node, might be suitable replacement
+		         ping(Address2),
+		         Update;
+		     Update ->
+		         Update
+	         end
+         end,
+         th_util:to_bits(Address),
+         Self,
+         Table
+        ).
     
 see(To, End, Table) ->
-    Telex = telex:see_command(get_nearest(?K, End, Table)),
-    switch:send(To, Telex).
+    Telex = th_telex:see_command(get_nearest(?K, End, Table)),
+    th_switch:send(To, Telex).
 
 ping(To) ->
-    Telex = telex:end_signal(util:random_end()),
+    Telex = th_telex:end_signal(th_util:random_end()),
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
-    switch:send(To, Telex),
+    th_switch:send(To, Telex),
     erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, To}).
 
 dialed(Address, Self, Table) ->
-    bit_tree:update(
-      fun (_Suffix, _Depth, _Gap, Bucket) ->
-	      bucket:dialed(now(), Bucket)
-      end,
-      util:to_bits(Address),
-      Self,
-      Table
-     ).
+    th_bit_tree:update(
+         fun (_Suffix, _Depth, _Gap, Bucket) ->
+	         th_bucket:dialed(now(), Bucket)
+         end,
+         th_util:to_bits(Address),
+         Self,
+         Table
+        ).
 
 get_nearest(N, End, Table) when N>=0 ->
-    Bits = util:to_bits(End),
-    iter:take(
-      N, 
-      iter:flatten(
-	iter:map(
-	  fun ({_Prefix, Bucket}) -> bucket:by_dist(End, Bucket) end, 
-	  bit_tree:iter(Bits, Table)))).
+    Bits = th_util:to_bits(End),
+    th_iter:take(
+         N,
+         th_iter:flatten(
+	      th_iter:map(
+	           fun ({_Prefix, Bucket}) -> th_bucket:by_dist(End, Bucket) end,
+	           th_bit_tree:iter(Bits, Table)))).

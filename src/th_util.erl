@@ -1,11 +1,12 @@
 % stuff that doesnt fit anywhere else
 
--module(util).
+-module(th_util).
 
 -include("conf.hrl").
 -include("types.hrl").
 
 -export([address_to_binary/1, binary_to_address/1, binary_to_end/1, hex_to_end/1, end_to_hex/1, to_end/1, random_end/0, random_end/1, distance/2, to_bits/1]).
+-export([tap_to_json/1, json_to_tap/1]).
 -export([ensure_started/1, set_nth/3]).
 
 % --- api --- 
@@ -76,5 +77,19 @@ set_nth(1, [_Head | Tail], Value) ->
     [Value | Tail];
 set_nth(N, [Head | Tail], Value) when N>1 ->
     [Head | set_nth(N-1, Tail, Value)].
+
+tap_to_json(#tap{subtaps=Subtaps}) ->
+    lists:map(subtap_to_json/1, Subtaps).
+
+subtap_to_json(#subtap{is=Is, has=Has}) ->
+    {struct, [ {<<"is">>, {struct, Is}}, {<<"has">>, Has} ]}.
+
+json_to_tap(Json) ->
+    #tap{subtaps = lists:map(json_to_subtap/1, Json)}.
+
+json_to_subtap({struct, Json}) ->
+    {struct, Is} = proplists:get_value(<<"is">>, json, {struct, []}),
+    Has = proplists:get_value(<<"has">>, Json, []),
+    #subtap{is=Is, has=Has}.
 
 % --- end ---

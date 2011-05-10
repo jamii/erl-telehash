@@ -1,10 +1,10 @@
 % handles encoding/decoding and manipulating telexes
 
--module(telex).
+-module(th_telex).
 
 -include("conf.hrl").
 
--export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1]).
+-export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1, tap_command/1, key_type/1]).
 
 % --- api ---
 
@@ -76,7 +76,7 @@ update({struct, Telex}, Key, F, Default) when is_list(Telex) and is_binary(Key) 
     end;
 update(Telex, Index, F, _Default) when is_list(Telex) and is_integer(Index) ->
     % !!! behaviour for out of range indexes?
-    util:set_nth(Index, Telex, F(lists:nth(Index, Telex)));
+    th_util:set_nth(Index, Telex, F(lists:nth(Index, Telex)));
 update(Telex, Path, F, Default) when is_tuple(Path) ->
     update_path(Telex, tuple_to_list(Path), F, Default).
 
@@ -86,9 +86,33 @@ update_path(Telex, [Path_elem | Path], F, Default) ->
     update(Telex, Path_elem, fun (T) -> update_path(T, Path, F, Default) end, Default).
 
 end_signal({'end', _}=End) ->
-    {struct, [{'+end', util:end_to_hex(End)}]}.
+    {struct, [{'+end', th_util:end_to_hex(End)}]}.
 
 see_command(Addresses) ->
-    {struct, [{'.see', [util:address_to_binary(Address) || Address <- Addresses]}]}.
+    {struct, [{'.see', [th_util:address_to_binary(Address) || Address <- Addresses]}]}.
+
+tap_command(Tap) ->
+    {struct, [{'.tap', tap_to_json(Tap)}]}.
+
+key_type(Key) when is_binary(Key) ->
+    case Key of
+	<< "_", _/binary >> ->
+	    header;
+	<< "+", _/binary >> ->
+	    signal;
+	<< ".", _/binary >> ->
+	    command;
+	_ ->
+	    normal
+    end.
+
+% --- internal functions ---
+
+%tap_to_json(Tap) ->
+%    map(Tap,
+%	fun (Rule) ->
+%		{struct, 
+
+map(List, Fun) -> lists:map(Fun, List).
 
 % --- end ---

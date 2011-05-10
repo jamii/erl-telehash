@@ -6,7 +6,7 @@
 % * nodes should never be removed from buckets unless a suitable replacement exists
 % these make the router resilient to flooding, poisoning and network failure
 
--module(bucket).
+-module(th_bucket).
 
 -include("types.hrl").
 -include("conf.hrl").
@@ -74,7 +74,7 @@ seen(Address, Time, Suffix, Bucket) ->
 	    % put node in cache, return a live node to ping
 	    Node = #node{
 	      address = Address,
-	      'end' = util:to_end(Address),
+	      'end' = th_util:to_end(Address),
 	      suffix = Suffix,
 	      status = cache,
 	      last_seen = Time
@@ -114,7 +114,7 @@ dialed(Time, Bucket) ->
 by_dist(End, #bucket{live=Live, stale=Stale}) ->
     Nodes = pq_maps:to_list(Live) ++ pq_maps:to_list(Stale),
     % !!! maybe should prefer to return live nodes even if further away
-    Nodes_by_dist = [{util:distance(End, Node#node.'end'), Node} || {_Key, Node} <- Nodes],
+    Nodes_by_dist = [{th_util:distance(End, Node#node.'end'), Node} || {_Key, Node} <- Nodes],
     [Node#node.address || {_Dist, Node} <- lists:sort(Nodes_by_dist)].
 
 last_touched(#bucket{live=Live, stale=Stale}) ->
@@ -149,7 +149,7 @@ split(Bucket) ->
 new_node(Address, Suffix, Time, Bucket, May_split) ->
     Node = #node{
       address = Address,
-      'end' = util:to_end(Address),
+      'end' = th_util:to_end(Address),
       suffix = Suffix,
       status = undefined,
       last_seen = Time

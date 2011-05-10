@@ -1,6 +1,6 @@
 % a simple gen_event handler which forwards events to the specified pid
 
--module(switch_handler).
+-module(th_switch_handler).
 
 -include("types.hrl").
 -include("conf.hrl").

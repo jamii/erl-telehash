@@ -1,6 +1,6 @@
 % impure lazy lists
 
--module(iter).
+-module(th_iter).
 
 -export([to_list/1, map/2, take/2, foreach/2, flatten/1]).
 

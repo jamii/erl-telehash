@@ -1,7 +1,7 @@
 % tapper handles .tap commands received from other nodes
 % and sends replies whenever matching signals are received
 
--module(tapper).
+-module(th_tapper).
 
 -include("types.hrl").
 -include("conf.hrl").
@@ -39,7 +39,7 @@ matches(Tap, Telex) ->
     end.
 
 matches(#tap{subtaps=Subtaps}, Telex) -> 
-    lists:any(fun (Subtap) -> matches_subtap(Subtap, Telex), Subtaps).
+    lists:any(fun (Subtap) -> matches_subtap(Subtap, Telex) end, Subtaps).
 
 matches_subtap(#subtap{is=Is, has=Has}, Telex) ->
     matches_is(Is, Telex) and matches_has(Has, Telex).
@@ -47,7 +47,7 @@ matches_subtap(#subtap{is=Is, has=Has}, Telex) ->
 matches_is(Is, Telex) ->
     lists:all(
       fun ({Key, Value}) ->
-	      {ok, Value} = telex:get(Telex, Key)
+	      {ok, Value} = th_telex:get(Telex, Key)
       end,
       Is
      ).
@@ -55,7 +55,7 @@ matches_is(Is, Telex) ->
 matches_has(Has, Telex) ->
     lists:all(
       fun (Arg) ->
-	      {ok, _} = telex:get(Telex, Arg)
+	      {ok, _} = th_telex:get(Telex, Arg)
       end
      ).
 

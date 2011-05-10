@@ -1,6 +1,6 @@
 % simple wrappers around error_logger
 
--module(log).
+-module(th_log).
 
 -export([info/1, warn/1, error/1]).
 

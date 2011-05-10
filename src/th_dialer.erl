@@ -1,7 +1,7 @@
 % a dialer locates the ?K nodes closest to a given end
 % each dialer is a gen_event handler attached to the switch manager
 
--module(dialer).
+-module(th_dialer).
 
 -include("conf.hrl").
 -include("types.hrl").
@@ -34,14 +34,14 @@
 dial(To, From, Timeout) ->
     ?INFO([dialing, {to, To}, {from, From}, {timeout, Timeout}]),
     Ref = erlang:make_ref(),
-    Target = util:to_end(To),
+    Target = th_util:to_end(To),
     Conf = #conf{
       target = Target,
       timeout = Timeout,
       ref = Ref,
       caller = self()
      },
-    Nodes = [{util:distance(Address, Target), Address}
+    Nodes = [{th_util:distance(Address, Target), Address}
 	     || Address <- From],
     State = #state{
       fresh=pq_sets:from_list(Nodes), 
@@ -65,7 +65,7 @@ dial_sync(Target, Addresses, Timeout) ->
 % --- gen_server callbacks ---
 
 init({#conf{timeout=Timeout}=Conf, State}) ->
-    switch:listen(),
+    th_switch:listen(),
     erlang:send_after(Timeout, self(), giveup),
     State2 = ping_nodes(Conf, State),
     {ok, {Conf, State2}}.
@@ -84,19 +84,19 @@ handle_info({timeout, Node}, {Conf, #state{waiting=Waiting}=State}) ->
     State2 = State#state{waiting=pq_sets:delete(Node, Waiting)},
     continue(Conf, State2);
 handle_info({switch, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
-    case telex:get(Telex, '.see') of
+    case th_telex:get(Telex, '.see') of
 	{error, not_found} -> 
 	    {noreply, {Conf, State}};
 	{ok, Address_binaries} ->
-	    Dist = util:distance(Address, Target),
+	    Dist = th_util:distance(Address, Target),
 	    Node = {Dist, Address},
 	    case sets:is_element(Node, Pinged) of % !!! command ids would make a better check
 		false ->
 		    {noreply, {Conf, State}};
 		true ->
 		    try 
-			Addresses = lists:map(fun util:binary_to_address/1, Address_binaries),
-			[{util:distance(Target, Addr), Addr} || Addr <- Addresses]
+			Addresses = lists:map(fun th_util:binary_to_address/1, Address_binaries),
+			[{th_util:distance(Target, Addr), Addr} || Addr <- Addresses]
 		    of
 			Nodes ->
 			    ?INFO([pong, {from, Node}, {nodes, Nodes}]),
@@ -115,7 +115,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    switch:deafen(),
+    th_switch:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -143,11 +143,11 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
 ping_nodes(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
     Num = ?A - pq_sets:size(Waiting),
     {Nodes, Fresh2} = pq_sets:pop(Fresh, Num),
-    Telex = telex:end_signal(Target),
+    Telex = th_telex:end_signal(Target),
     lists:foreach(
       fun ({_Dist, Address}=Node) -> 
 	      ?INFO([ping, {node, Node}]),
-	      switch:send(Address, Telex),
+	      th_switch:send(Address, Telex),
 	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Node})
       end, 
       Nodes),
@@ -177,7 +177,7 @@ return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
 continue(Conf, State) ->
     case finished(State) of
 	true ->
-	    switch:notify({dialed, Conf#conf.target}),
+	    th_switch:notify({dialed, Conf#conf.target}),
 	    return(Conf, State),
 	    {stop, {shutdown, finished}, {Conf, State}};
 	false ->

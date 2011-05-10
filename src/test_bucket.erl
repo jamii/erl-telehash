@@ -10,7 +10,7 @@
 -define(BITS, ?END_BITS).
 
 bits(Int) ->
-    util:to_bits(<<Int:?BITS>>).
+    th_util:to_bits(<<Int:?BITS>>).
 
 add(Suffix, Int, Bucket) ->
     split([{Suffix, Int} | Bucket]).
@@ -26,24 +26,24 @@ split(Bucket) ->
     end.
 
 add_to_tree(Int, Tree) ->
-    bit_tree:update(
-      fun (Suffix, _Depth, _Gap_size, Bucket) -> 
-	      add(Suffix, Int, Bucket) 
-      end, 
-      bits(Int),
-      bits(Int), % dont care about gap for now
-      Tree).
+    th_bit_tree:update(
+         fun (Suffix, _Depth, _Gap_size, Bucket) ->
+	         add(Suffix, Int, Bucket)
+         end,
+         bits(Int),
+         bits(Int),  % dont care about gap for now
+         Tree).
 
 make_tree(Ints) ->   
-    Tree = bit_tree:empty(0, []),
+    Tree = th_bit_tree:empty(0, []),
     lists:foldl(fun add_to_tree/2, Tree, Ints).
 
 distance(IntA, IntB) ->
-    util:distance({'end', <<IntA:?BITS>>}, {'end', <<IntB:?BITS>>}).
+    th_util:distance({'end', <<IntA:?BITS>>}, {'end', <<IntB:?BITS>>}).
 
 % output *should* be in ascending order
 list_from(Int, Tree) ->
-    List = iter:to_list(bit_tree:iter(bits(Int), Tree)),
+    List = th_iter:to_list(th_bit_tree:iter(bits(Int), Tree)),
     lists:map(
       fun (Bucket) ->
 	      lists:sort([{distance(Int, Elem), Elem} || {_,Elem} <- Bucket])

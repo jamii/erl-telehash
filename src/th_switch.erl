@@ -2,7 +2,7 @@
 % the gen_server manages the udp socket
 % the gen_event allows other processes to subscribe to incoming/outgoing telexes
 
--module(switch).
+-module(th_switch).
 
 -include("conf.hrl").
 -include("types.hrl").
@@ -51,13 +51,13 @@ handle_call(_Request, _From, State) ->
     {noreply, State}.
 
 handle_cast({send, #address{host=Host, port=Port}=Address, Telex}, #state{socket=Socket}=State) ->
-    Telex2 = telex:set(Telex, '_to', util:address_to_binary(Address)),
-    try gen_udp:send(Socket, Host, Port, telex:encode(Telex2)) of
-	ok ->
-	    ?INFO([send, {address, Address}, {telex, Telex2}]),
-	    gen_event:notify(?EVENT, {send, Address, Telex2});
-	Error ->
-	    ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}])
+    Telex2 = th_telex:set(Telex, '_to', th_util:address_to_binary(Address)),
+    try gen_udp:send(Socket, Host, Port, th_telex:encode(Telex2)) of
+	   ok ->
+	       ?INFO([send, {address, Address}, {telex, Telex2}]),
+	       gen_event:notify(?EVENT, {send, Address, Telex2});
+	   Error ->
+	       ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}])
     catch
 	_:Error ->
 	    ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}, {trace, erlang:get_stacktrace()}])
@@ -87,12 +87,12 @@ code_change(_OldVsn, State, _Extra) ->
 % --- internal functions ---
 
 handle_recv(Address, Packet) ->
-    try telex:decode(Packet) of
-	Telex ->
-	    ?INFO([recv, {address, Address}, {telex, Telex}]),
-	    gen_event:notify(?EVENT, {recv, Address, Telex})
+    try th_telex:decode(Packet) of
+	   Telex ->
+	       ?INFO([recv, {address, Address}, {telex, Telex}]),
+	       gen_event:notify(?EVENT, {recv, Address, Telex})
     catch
-	error:{telex, _, _, _}=Error ->
+	error:({telex, _, _, _}=Error) ->
 	    ?WARN([recv_error, {address, Address}, {packet, Packet}, {error, Error}])
     end.
 

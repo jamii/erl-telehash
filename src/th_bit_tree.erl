@@ -3,7 +3,7 @@
 % as far as the bit_tree is concerned the buckets are completely opaque
 % the bit_tree also calculates various numbers needed for splitting decisions
 
--module(bit_tree).
+-module(th_bit_tree).
 
 -include("conf.hrl").
 
