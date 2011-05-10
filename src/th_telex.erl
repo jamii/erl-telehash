@@ -4,7 +4,7 @@
 
 -include("conf.hrl").
 
--export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1, tap_command/1, key_type/1]).
+-export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1, key_type/1]).
 
 % --- api ---
 
@@ -91,8 +91,8 @@ end_signal({'end', _}=End) ->
 see_command(Addresses) ->
     {struct, [{'.see', [th_util:address_to_binary(Address) || Address <- Addresses]}]}.
 
-tap_command(Tap) ->
-    {struct, [{'.tap', tap_to_json(Tap)}]}.
+%tap_command(Tap) ->
+%    {struct, [{'.tap', tap_to_json(Tap)}]}.
 
 key_type(Key) when is_binary(Key) ->
     case Key of
