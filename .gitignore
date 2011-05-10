@@ -1,4 +1,8 @@
 *.beam
 *~
 #*
+
 scratch
+
+deps/
+ebin/

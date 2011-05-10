@@ -1,0 +1,13 @@
+{application, telehash,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+		  crypto
+                 ]},
+  {mod, { telehash_app, []}},
+  {env, []}
+ ]}.
