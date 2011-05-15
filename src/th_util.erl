@@ -11,29 +11,35 @@
 
 % --- api --- 
 
-address_to_binary(#address{host=Host, port=Port}) when is_list(Host) or is_binary(Host) ->
-    iolist_to_binary(io_lib:format("~s:~w", [Host, Port])).
+-spec address_to_binary(address()) -> binary().
+address_to_binary(#address{host={A,B,C,D}, port=Port}) ->
+    iolist_to_binary(io_lib:format("~B.~B.~B.~B:~w", [A, B, C, D, Port])).
 
+-spec binary_to_address(binary()) -> address().
 binary_to_address(Binary) when is_binary(Binary) ->
-    {Host, [ $: | Port_string ]} = lists:splitwith(fun (Char) -> Char /= $: end, binary_to_list(Binary)),
-    {Port, []} = string:to_integer(Port_string), 
-    #address{host=Host, port=Port}.
+    {ok, [A, B, C, D, Port], ""} = io_lib:fread("~u.~u.~u.~u:~u", binary_to_list(Binary)), 
+    #address{host={A,B,C,D}, port=Port}.
 
+-spec binary_to_end(binary()) -> 'end'().
 binary_to_end(String) ->
     ok = ensure_started(crypto),
     {'end', crypto:sha(String)}.
 
+-spec end_to_hex('end'()) -> binary().
 end_to_hex({'end', End}) when is_binary(End) ->
     iolist_to_binary([io_lib:format("~2.16.0b", [Byte]) || Byte <- binary_to_list(End)]).
 
+-spec hex_to_end(binary()) -> 'end'().
 hex_to_end(Hex) when is_binary(Hex) ->
     {'end', iolist_to_binary([Char - 48 || Char <- binary_to_list(Hex)])}.
 
+-spec to_end(address() | 'end'()) -> 'end'(). 
 to_end(#address{}=Address) ->
     binary_to_end(address_to_binary(Address));
 to_end({'end', _} = End) ->
     End.
 
+-spec distance('end'(), 'end'()) -> integer().
 distance(A, B) ->
     {'end', EndA} = to_end(A),
     {'end', EndB} = to_end(B),
@@ -42,14 +48,17 @@ distance(A, B) ->
     <<Dist:?END_BITS>> = Xor,
     Dist.
 
+-spec bit(boolean()) -> integer().
 bit(false) ->
     0;
 bit(true) ->
     1.
 
+-spec random_end() -> 'end'().	
 random_end() ->
     {'end', crypto:rand_bytes(?END_BITS div 8)}.
 
+-spec random_end(binary()) -> 'end'().
 random_end(Prefix) when is_list(Prefix) ->
     random_end(<< <<(bit(B)):1>> || B <- Prefix >>);
 random_end(Prefix) when is_bitstring(Prefix) ->
@@ -58,6 +67,7 @@ random_end(Prefix) when is_bitstring(Prefix) ->
     Bytes = crypto:rand_bytes((?END_BITS div 8) - byte_size(Prefix)),
     {'end', << Prefix/bitstring , Bits:Gap, Bytes/binary >>}.
 
+-spec to_bits(address() | 'end'() | binary()) -> list(boolean()).
 to_bits(#address{}=Address) ->
     to_bits(to_end(Address));
 to_bits({'end', End}) ->
@@ -67,28 +77,30 @@ to_bits(<<>>) ->
 to_bits(Bin) when is_bitstring(Bin) ->
     [(Bit>0) || <<Bit:1>> <= Bin].
 
+-spec ensure_started(atom()) -> ok.
 ensure_started(Module) ->
     case Module:start() of
 	ok -> ok;
 	{error, {already_started, Module}} -> ok
     end.
 
+-spec set_nth(integer(), list(), term()) -> list().
 set_nth(1, [_Head | Tail], Value) ->
     [Value | Tail];
 set_nth(N, [Head | Tail], Value) when N>1 ->
     [Head | set_nth(N-1, Tail, Value)].
 
 tap_to_json(#tap{subtaps=Subtaps}) ->
-    lists:map(subtap_to_json/1, Subtaps).
+    lists:map(fun subtap_to_json/1, Subtaps).
 
 subtap_to_json(#subtap{is=Is, has=Has}) ->
     {struct, [ {<<"is">>, {struct, Is}}, {<<"has">>, Has} ]}.
 
 json_to_tap(Json) ->
-    #tap{subtaps = lists:map(json_to_subtap/1, Json)}.
+    #tap{subtaps = lists:map(fun json_to_subtap/1, Json)}.
 
 json_to_subtap({struct, Json}) ->
-    {struct, Is} = proplists:get_value(<<"is">>, json, {struct, []}),
+    {struct, Is} = proplists:get_value(<<"is">>, Json, {struct, []}),
     Has = proplists:get_value(<<"has">>, Json, []),
     #subtap{is=Is, has=Has}.
 
