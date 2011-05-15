@@ -11,23 +11,50 @@
 
 % a bit_tree is either a leaf or a branch
 -record(leaf, {
-	  size, % size of bucket
+	  size :: integer(), % size of bucket
 	  bucket % some opaque bucket of stuff
 	 }).
+-type leaf(Bucket) :: #leaf{bucket::Bucket}.
+
 -record(branch, {
-	  size, % size(childF) + size(childT)
+	  size :: integer(), % size(childF) + size(childT)
 	  childF, % tree containing nodes whose next bit is false
 	  childT % tree containing nodes whose next bit is true
 	 }).
+-type branch(Bucket) :: #branch{childF::bit_tree(Bucket), childT::bit_tree(Bucket)}.
+
+-type bit_tree(Bucket) :: leaf(Bucket) | branch(Bucket).
+-export_types([bit_tree/1]).
+
+-type bits() :: list(boolean()).
+
+-type bucket_update(Bucket) :: 
+	  {ok, Size::integer, Bucket} 
+	| {split, Bucket, Bucket}.
+	
+-type update_fun(Bucket) :: fun(
+	      (
+                Suffix :: bits(),  
+	        Depth :: integer(),
+	        Gap :: integer(), % Gap is the size of largest subtree containing self but not containing this bucket
+	        Bucket :: Bucket
+	      ) ->
+		bucket_update(Bucket)
+	      ).
 
 % --- api ---
 
+-spec empty(integer(), Bucket) -> leaf(Bucket).
 empty(Size, Bucket) ->
     #leaf{size=Size, bucket=Bucket}.
-		
+	
+-spec update(update_fun(Bucket), bits(), bits(), bit_tree(Bucket)) -> bit_tree(Bucket).
 update(Fun, Bits, Self, Tree) when is_function(Fun), is_list(Bits), is_list(Self) ->
     update(Fun, Bits, {self, Self}, 0, Tree).
 
+-type gap() :: {gap, integer()} | {self, bits()}.
+
+-spec update(update_fun(Bucket), bits(), gap(), integer(), bit_tree(Bucket)) -> bit_tree(Bucket).
 update(Fun, Bits, Self, Depth, #leaf{bucket=Bucket}) ->
     Gap =
 	case Self of
@@ -57,9 +84,11 @@ update(Fun, Bits, Self, Depth, #branch{childF=ChildF, childT=ChildT}) ->
     end.
 
 % iterate through buckets in ascending order of xor distance to Bits
+-spec iter(bits(), bit_tree(Bucket)) -> th_iter:iter(Bucket).
 iter(Bits, Tree) ->
     iter(Bits, [], Tree, fun() -> done end).
 			     
+-spec iter(bits(), bits(), bit_tree(Bucket), th_iter:iter(Bucket)) -> th_iter:iter(Bucket).
 iter(_Suffix, Prefix_rev, #leaf{bucket=Bucket}, Iter) ->
     fun () ->
 	    {{lists:reverse(Prefix_rev), Bucket}, Iter}
@@ -76,11 +105,13 @@ iter(Suffix, Prefix_rev, #branch{childF=ChildF, childT=ChildT}, Iter) ->
 
 % --- internal functions ---
 
+-spec tree_size(bit_tree(_Bucket)) -> integer().
 tree_size(#leaf{size=Size}) ->
     Size;
 tree_size(#branch{size=Size}) ->
     Size.
 
+-spec bucket_update_to_tree(bucket_update(Bucket)) -> bit_tree(Bucket).
 bucket_update_to_tree({ok, Size, Bucket}) ->
     #leaf{size=Size, bucket=Bucket};
 bucket_update_to_tree({split, SplitF, SplitT}) ->
