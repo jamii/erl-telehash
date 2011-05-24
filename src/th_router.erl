@@ -14,31 +14,41 @@
 
 -define(K, ?REPLICATION).
 
+-type table() :: th_bit_tree:bit_tree(th_bucket:bucket()).
+
 -record(bootstrap, { % the state of the router when bootstrapping
-	  timeout, % give up if no address received before this time
-	  addresses % list of addresses contacted to find out our address
+	  timeout :: timeout(), % give up if no address received before this time
+	  addresses :: list(address()) % list of addresses contacted to find out our address
 	 }).
+-type bootstrap() :: #bootstrap{}.
 
 -record(state, { % the state of the router in normal operation
-	  self, % the bits of the routers own end
-	  pinged, % set of addresses which have been pinged and not yet replied/timedout
-	  table % the routing table, a bit_tree containing buckets of nodes
+	  self :: bits(), % the bits of the routers own end
+	  pinged :: set(), % set of addresses which have been pinged and not yet replied/timedout
+	  table :: table() % the routing table, a bit_tree containing buckets of nodes
 	 }).
+-type state() :: #state{}.
 
 % --- api ---	
 
-start(#address{}=Self) ->
+-spec start(address()) -> {ok, pid()}.
+start(#address{}=Address) ->
     ?INFO([starting]),
-    State = #state{self=th_util:to_bits(Self), pinged=sets:new(), table=empty_table(Self)},
+    Self = th_util:to_bits(Address),
+    State = #state{self=Self, pinged=sets:new(), table=empty_table(Self)},
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
+-spec bootstrap() -> {ok, pid()}.
 bootstrap() ->
     bootstrap([?TELEHASH_ORG], 10000).
+
+-spec bootstrap(list(address()), timeout()) -> {ok, pid()}.
 bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},    
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
+-spec nearest(pos_integer(), 'end'(), timeout()) -> list(address()).
 nearest(N, End, Timeout) ->
     {ok, Nearest} = gen_server:call(?MODULE, {nearest, N, End}, Timeout),
     Nearest.
@@ -172,6 +182,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 % --- internal functions ---
 
+-spec empty_table(bits()) -> table().
 empty_table(Self) ->
     % pre-split buckets containing Self, so that refreshes hit a useful number of buckets
     Split = fun (_, _, _, Bucket) -> th_bucket:split(Bucket) end,
@@ -183,6 +194,7 @@ empty_table(Self) ->
       lists:seq(1, ?END_BITS)
      ).
 
+-spec needs_refresh(th_bucket:bucket(), now()) -> boolean().
 needs_refresh(Bucket, Now) ->
     case th_bucket:last_dialed(Bucket) of
 	never -> 
@@ -191,6 +203,7 @@ needs_refresh(Bucket, Now) ->
 	    (timer:now_diff(Now, Last) div 1000) < ?ROUTER_REFRESH_TIME
     end.
 
+-spec refresh(bits(), table()) -> ok.
 refresh(Self, Table) ->
     Now = now(),
     th_iter:foreach(
@@ -210,6 +223,7 @@ refresh(Self, Table) ->
     erlang:send_after(?ROUTER_REFRESH_TIME, self(), refresh),
     ok.
 
+-spec touched(address(), bits(), table()) -> table().
 touched(Address, Self, Table) ->
     th_bit_tree:update(
          fun (Suffix, _Depth, Gap, Bucket) ->
@@ -221,6 +235,7 @@ touched(Address, Self, Table) ->
          Table
         ).
 
+-spec seen(address(), bits(), table()) -> table().
 seen(Address, Self, Table) ->
     th_bit_tree:update(
          fun (Suffix, _Depth, _Gap, Bucket) ->
@@ -238,6 +253,7 @@ seen(Address, Self, Table) ->
          Table
         ).
 
+-spec timedout(address(), bits(), table()) -> table().
 timedout(Address, Self, Table) ->
     th_bit_tree:update(
          fun (_Suffix, _Depth, _Gap, Bucket) ->
@@ -255,17 +271,21 @@ timedout(Address, Self, Table) ->
          Table
         ).
     
+-spec see(address(), 'end'(), table()) -> ok.
 see(To, End, Table) ->
     Telex = th_telex:see_command(get_nearest(?K, End, Table)),
     th_switch:send(To, Telex).
 
+-spec ping(address()) -> ok.
 ping(To) ->
     Telex = th_telex:end_signal(th_util:random_end()),
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
     th_switch:send(To, Telex),
-    erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, To}).
+    erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, To}),
+    ok.
 
+-spec dialed(address(), bits(), table()) -> table().
 dialed(Address, Self, Table) ->
     th_bit_tree:update(
          fun (_Suffix, _Depth, _Gap, Bucket) ->
@@ -276,6 +296,7 @@ dialed(Address, Self, Table) ->
          Table
         ).
 
+-spec get_nearest(pos_integer(), 'end'(), table()) -> list(address()).
 get_nearest(N, End, Table) when N>=0 ->
     Bits = th_util:to_bits(End),
     th_iter:take(

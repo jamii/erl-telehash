@@ -100,7 +100,7 @@ handle_info({switch, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state
 		false ->
 		    {noreply, {Conf, State}};
 		true ->
-		    try 
+		    try
 			Addresses = lists:map(fun th_util:binary_to_address/1, Address_binaries),
 			[{th_util:distance(Target, Addr), Addr} || Addr <- Addresses]
 		    of
@@ -164,7 +164,7 @@ ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
     State#state{fresh=Fresh2, waiting=Waiting2, pinged=Pinged2}.
 
 % handle a reply from a peer
--spec ponged(peer(), list(address()), state()) -> state().
+-spec ponged(peer(), list(peer()), state()) -> state().
 ponged(Peer, See, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged, ponged=Ponged, seen=Seen}=State) ->
     Waiting2 = pq_sets:delete(Peer, Waiting),
     Pinged2 = sets:del_element(Peer, Pinged),

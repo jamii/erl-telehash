@@ -149,7 +149,7 @@ last_touched(#bucket{live=Live, stale=Stale}) ->
 	    if Last_live > Last_stale -> Last_live; true -> Last_stale end
     end.
 
--spec last_dialed(bucket()) -> now().
+-spec last_dialed(bucket()) -> now() | never.
 last_dialed(Bucket) ->
     Bucket#bucket.last_dialed.
 
@@ -296,7 +296,7 @@ pop_cache_new(#bucket{peers=Peers, cache=Cache}=Bucket) ->
 	{_Key, #peer{address=Address}=Peer, Cache2} ->
 	    Peers2 = gb_trees:delete(Address, Peers),
 	    {ping, Peer#peer.address, ok(Bucket#bucket{peers=Peers2, cache=Cache2})};
-	false ->
+	none ->
 	    ok(Bucket)
     end.
 

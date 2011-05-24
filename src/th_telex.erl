@@ -17,7 +17,7 @@
 
 -type key_type() :: header | signal | command | normal.
 
--type path() :: json_string() | integer() | list(path()).
+-type path() :: atom() | json_string() | integer() | list(path()).
 
 -export_type([json_string/0, json_number/0, json_array/0, json_object/0, json/0, telex/0, key_type/0, path/0]).
 

@@ -39,7 +39,7 @@ to_end(#address{}=Address) ->
 to_end({'end', _} = End) ->
     End.
 
--spec distance('end'(), 'end'()) -> integer().
+-spec distance(address() | 'end'(), address() | 'end'()) -> integer().
 distance(A, B) ->
     {'end', EndA} = to_end(A),
     {'end', EndB} = to_end(B),
