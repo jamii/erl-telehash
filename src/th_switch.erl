@@ -20,24 +20,30 @@
 
 % --- api ---
 
+-spec start_link() -> {ok, pid(), pid()}.
 start_link() ->
     {ok, Gen_event} = gen_event:start_link({local, ?EVENT}),
     {ok, Gen_server} = gen_server:start_link({local, ?SERVER}, ?MODULE, [], []),
     {ok, Gen_event, Gen_server}.
 
+-spec listen() -> ok.
 listen() ->
-    gen_event:add_sup_handler(?EVENT, {?HANDLER, self()}, self()).
+    ok = gen_event:add_sup_handler(?EVENT, {?HANDLER, self()}, self()).
 
+-spec deafen() -> ok.
 deafen() ->
-    gen_event:delete_handler(?EVENT, {?HANDLER, self()}, deafen).
+    ok = gen_event:delete_handler(?EVENT, {?HANDLER, self()}, deafen).
 
+-spec send(address(), telex:telex()) -> ok.
 send(#address{}=Address, Telex) ->
     gen_server:cast(?SERVER, {send, Address, Telex}).
 
 % for testing / debugging
+-spec recv(address(), binary()) -> ok.
 recv(#address{}=Address, Packet) ->
     gen_server:cast(?SERVER, {recv, Address, Packet}).
 
+-spec notify(term()) -> ok.
 notify(Event) ->
     gen_event:notify(?EVENT, Event).
 
@@ -69,8 +75,7 @@ handle_cast({recv, #address{}=Address, Packet}, State) ->
 handle_cast(_Packet, State) ->
     {noreply, State}.
 
-handle_info({udp, Socket, {A,B,C,D}, Port, Packet}, #state{socket=Socket}=State) ->
-    Host = lists:flatten(io_lib:format("~w.~w.~w.~w", [A,B,C,D])),
+handle_info({udp, Socket, Host, Port, Packet}, #state{socket=Socket}=State) ->
     Address = #address{host=Host, port=Port},
     handle_recv(Address, Packet),
     {noreply, State};
@@ -86,6 +91,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 % --- internal functions ---
 
+-spec handle_recv(address(), binary()) -> ok.
 handle_recv(Address, Packet) ->
     try th_telex:decode(Packet) of
 	   Telex ->
