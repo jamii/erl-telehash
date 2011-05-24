@@ -67,7 +67,7 @@ random_end(Prefix) when is_bitstring(Prefix) ->
     Bytes = crypto:rand_bytes((?END_BITS div 8) - byte_size(Prefix)),
     {'end', << Prefix/bitstring , Bits:Gap, Bytes/binary >>}.
 
--spec to_bits(address() | 'end'() | binary()) -> list(boolean()).
+-spec to_bits(address() | 'end'() | binary()) -> bits().
 to_bits(#address{}=Address) ->
     to_bits(to_end(Address));
 to_bits({'end', End}) ->

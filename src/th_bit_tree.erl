@@ -5,6 +5,7 @@
 
 -module(th_bit_tree).
 
+-include("types.hrl").
 -include("conf.hrl").
 
 -export([empty/2, update/4, iter/2]).
@@ -26,11 +27,10 @@
 -type bit_tree(Bucket) :: leaf(Bucket) | branch(Bucket).
 -export_types([bit_tree/1]).
 
--type bits() :: list(boolean()).
-
 -type bucket_update(Bucket) :: 
 	  {ok, Size::integer, Bucket} 
 	| {split, Bucket, Bucket}.
+-export_types(bucket_update/1).
 	
 -type update_fun(Bucket) :: fun(
 	      (
