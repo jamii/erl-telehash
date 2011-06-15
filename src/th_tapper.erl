@@ -65,12 +65,24 @@ handle_info({switch, {recv, From, Telex}}, #state{taps=Taps}=State) ->
 	    _ ->
 		Taps
     end,
-    lists:foreach(
-      fun ({Address, Match}) ->
-	      th_switch:send(Address, Match)
-      end,
-      matches(Telex, dict:to_list(Taps2))
-     ),
+    case th_telex:get(Telex, '_hop') of
+	{ok, Hop} when is_integer(Hop) ->
+	    if
+		Hop < 4 ->
+		    lists:foreach(
+		      fun ({Address, Match}) ->
+			      Match2 = th_telex:set(Match, '_hop', Hop+1),
+			      ?INFO([forward, {address, Address}, {match, Match2}]),
+			      th_switch:send(Address, Match2)
+		      end,
+		      matches(Telex, dict:to_list(Taps2))
+		     );
+		true ->
+		    ok
+	    end;
+	_ -> 
+	    ok
+    end,	
     {noreply, State#state{taps=Taps2}};
 handle_info(_, State) ->
     {noreply, State}.
