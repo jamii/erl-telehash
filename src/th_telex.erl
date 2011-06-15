@@ -5,7 +5,9 @@
 -include("conf.hrl").
 -include("types.hrl").
 
--export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1, key_type/1]).
+-export([encode/1, decode/1, get/2, set/3, update/4, end_signal/1, see_command/1, tap_command/1, key_type/1]).
+
+-export([tap_to_json/1, json_to_tap/1]).
 
 -type json_string() :: atom | binary().
 -type json_number() :: integer() | float().
@@ -120,8 +122,9 @@ end_signal({'end', _}=End) ->
 see_command(Addresses) ->
     {struct, [{'.see', [th_util:address_to_binary(Address) || Address <- Addresses]}]}.
 
-%tap_command(Tap) ->
-%    {struct, [{'.tap', tap_to_json(Tap)}]}.
+-spec tap_command(tap()) -> json_object().
+tap_command(Tap) ->
+    {struct, [{'.tap', tap_to_json(Tap)}]}.
 
 -spec key_type(binary()) -> key_type().
 key_type(Key) when is_binary(Key) ->
@@ -138,11 +141,34 @@ key_type(Key) when is_binary(Key) ->
 
 % --- internal functions ---
 
-%tap_to_json(Tap) ->
-%    map(Tap,
-%	fun (Rule) ->
-%		{struct, 
+% !!! check that keys are all signals, same for json_to_tap
+tap_to_json(#tap{subtaps=Subtaps}) ->
+    lists:map(
+      fun (#subtap{is=Is, has=Has}) ->
+	      {struct, [{is, {struct, Is}}, {has, Has}]}
+      end,
+      Subtaps
+     ).
 
-map(List, Fun) -> lists:map(Fun, List).
+json_to_tap({struct, Json}) ->
+    #tap{subtaps = lists:map(fun json_to_subtap/1, Json)}.
+
+json_to_subtap(Json) ->
+    Is =
+	case th_telex:get(Json, is) of
+	    {ok, {struct, Args}} ->
+		Args;
+	    _ ->
+		[]
+	end,
+    Has =
+	case th_telex:get(Json, has) of
+	    {ok, Keys} ->
+		lists:foreach(fun (Key) -> true = is_binary(Key) end, Keys),
+		Keys;
+	    _ ->
+		[]
+	end,
+    #subtap{is=Is, has=Has}.
 
 % --- end ---

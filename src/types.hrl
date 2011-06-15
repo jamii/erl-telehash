@@ -13,5 +13,13 @@
 -type 'end'() :: {'end', binary()}.
 -type bits() :: list(boolean()). 
 
--record(tap, {subtaps}).
--record(subtap, {is, has}).
+-record(tap, {
+	  subtaps :: list(subtap)
+	 }).
+-type tap() :: #tap{}.
+
+-record(subtap, {
+	  is :: list({Key :: th_telex:json_string(), Value :: th_telex:json()}), 
+	  has :: list(Key :: th_telex:json_string())
+	 }).
+-type subtap() :: #subtap{}.
