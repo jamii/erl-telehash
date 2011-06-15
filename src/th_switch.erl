@@ -14,9 +14,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {socket}).
--define(EVENT, switch_event).
--define(SERVER, switch_server).
--define(HANDLER, switch_handler).
+-define(EVENT, th_switch_event).
+-define(SERVER, th_switch_server).
+-define(HANDLER, th_switch_handler).
 
 % --- api ---
 
