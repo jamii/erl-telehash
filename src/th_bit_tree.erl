@@ -66,10 +66,10 @@ update(Fun, Bits, Self, Depth, #branch{childF=ChildF, childT=ChildT}) ->
     [Next|Bits2] = Bits,
     Self2 =
 	case Self of
-	    {gap, _} -> Self;
-	    {self, [Next|Rest]} -> {self, Rest};
-	    {self, [false|_]} -> {gap, tree_size(ChildF)};
-	    {self, [true|_]} -> {gap, tree_size(ChildT)}
+	    {gap, G} -> {gap, G};
+	    {self, [false|_]} when Next == true -> {gap, tree_size(ChildF)};
+	    {self, [true|_]} when Next == false -> {gap, tree_size(ChildT)};
+	    {self, [Next|Rest]} -> {self, Rest}
 	end,
     Depth2 = Depth+1,
     case Next of
@@ -98,8 +98,10 @@ iter(Suffix, Prefix_rev, #branch{childF=ChildF, childT=ChildT}, Iter) ->
     Prefix_rev2 = [Bit|Prefix_rev],
     case Bit of 
 	true ->
+	    % childT first, childF second
 	    iter(Suffix2, Prefix_rev2, ChildT, iter(Suffix2, Prefix_rev2, ChildF, Iter));
 	false ->
+	    % childF first, childT second
 	    iter(Suffix2, Prefix_rev2, ChildF, iter(Suffix2, Prefix_rev2, ChildT, Iter))
     end.
 

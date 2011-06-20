@@ -25,7 +25,7 @@
 -record(state, { % the state of the router in normal operation
 	  self :: bits(), % the bits of the routers own end
 	  pinged :: set(), % set of addresses which have been pinged and not yet replied/timedout
-	  table :: table() % the routing table, a bit_tree containing buckets of nodes
+	  table :: table() % the routing table, a th_bit_tree containing th_buckets of nodes
 	 }).
 -type state() :: #state{}.
 
@@ -96,17 +96,16 @@ handle_info({switch, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Boots
 	    {noreply, Bootstrap}
     end;
 handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
-    % this counts as a reply
+    % count this as a reply
     Pinged2 = sets:del_element(From, Pinged),
     % touched the sender
-    % !!! eventually will check _line here
     ?INFO([touched, {node, From}]),
     Table2 = touched(From, Self, Table),
     % maybe seen some nodes
     Table3 =
 	case th_telex:get(Telex, '.see') of
 	    {ok, Binaries} ->
-		try [th_util:binary_to_address(Bin) || Bin <- Binaries] of
+		try lists:map(fun th_util:binary_to_address/1, Binaries) of
 		    Addresses ->
 			?INFO([seen, {nodes, Addresses}, {from, From}]),
 			lists:foldl(fun (Address, Table_acc) -> seen(Address, Self, Table_acc) end, Table2, Addresses)
@@ -200,7 +199,7 @@ needs_refresh(Bucket, Now) ->
 	never -> 
 	    true;
 	Last -> 
-	    (timer:now_diff(Now, Last) div 1000) < ?ROUTER_REFRESH_TIME
+	    (timer:now_diff(Now, Last) div 1000) > ?ROUTER_REFRESH_TIME
     end.
 
 -spec refresh(bits(), table()) -> ok.
@@ -227,6 +226,7 @@ refresh(Self, Table) ->
 touched(Address, Self, Table) ->
     th_bit_tree:update(
          fun (Suffix, _Depth, Gap, Bucket) ->
+		 % !!! is this the correct condition?
 	         May_split =  (Gap < ?K), % !!! or (Depth < ?ROUTER_TABLE_EXPANSION)
 	         th_bucket:touched(Address, Suffix, now(), Bucket, May_split)
          end,

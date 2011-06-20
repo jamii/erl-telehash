@@ -7,6 +7,8 @@
 
 -type pq() :: gb_set().
 
+-export_types([pq/0]).
+
 -spec empty() -> pq().
 empty() ->
     gb_sets:empty().

@@ -1,10 +1,10 @@
 % implements the bucket part of kademlia k-buckets
-% important points:
-% * each bucket should contain at most ?K peers
+% important rules:
+% * the bucket should contain at most ?K peers (not including cached peers)
 % * we should only ever report peer addresses which we have personally confirmed
-% * responsive peers should never be removed from buckets
-% * peers should never be removed from buckets unless a suitable replacement exists
-% these make the router resilient to flooding, poisoning and network failure
+% * responsive peers should never be removed from the bucket
+% * peers should never be removed from the bucket unless a suitable replacement exists
+% these rules make the router resilient to flooding, poisoning and network failure
 
 -module(th_bucket).
 
@@ -23,7 +23,7 @@
 	  'end' :: 'end'(), % peers end
 	  suffix :: bits(), % the remaining bits of the peers end left over from the bit_tree
 	  status :: status(), % one of [live, stale, cache]
-	  last_seen :: now() % for live/stale peers, the time of the last received message. for cache peers the time of the last .see reference to the peer
+	  last_seen :: now() % for live/stale peers, the time of the last direct contact. for cache peers the time of the last direct or indirect contact
 	 }).
 -type peer() :: #peer{}.
 
@@ -38,6 +38,9 @@
 -type bucket() :: #bucket{}.
 -export_types([bucket/0]).
 
+-type update() :: th_bit_tree:bucket_update(bucket()) .
+-type ping_and_update() :: {ping, address(), update()}.
+
 % --- api ---
 
 -spec empty() -> bucket().
@@ -50,8 +53,9 @@ empty() ->
        cache = pq_maps:empty()
       }.
 
-% this address has been verified as actually existing
--spec touched(address(), bits(), now(), bucket(), boolean()) -> th_bit_tree:bucket_update(bucket()).
+% this address has been verified as actually existing (direct contact)
+% !!! would be nice for this to return a ping when new node goes in cache
+-spec touched(address(), bits(), now(), bucket(), boolean()) -> update().
 touched(Address, Suffix, Time, Bucket, May_split) ->
     ?INFO([touching, {address, Address}, {bucket, Bucket}]),
     case get_peer(Address, Bucket) of
@@ -66,22 +70,22 @@ touched(Address, Suffix, Time, Bucket, May_split) ->
 		cache ->
 		    % potentially promote the peer to live
 		    Bucket2 = del_peer(Peer, Bucket),
-		    new_peer(Address, Suffix, Time, Bucket2, May_split)
+		    new_live_peer(Address, Suffix, Time, Bucket2, May_split)
 	    end;
 	none ->
 	    % potentially add the peer to live
-	    new_peer(Address, Suffix, Time, Bucket, May_split)
+	    new_live_peer(Address, Suffix, Time, Bucket, May_split)
     end.
 
-% this address has been reported to exist by another peer
--spec seen(address(), bits(), now(), bucket()) -> th_bit_tree:bucket_update(bucket()).
+% this address has been reported to exist by another peer (indirect contact)
+-spec seen(address(), bits(), now(), bucket()) -> update() | ping_and_update().
 seen(Address, Suffix, Time, Bucket) ->
     ?INFO([seeing, {address, Address}, {bucket, Bucket}]),
     case get_peer(Address, Bucket) of
 	{ok, Peer} ->
 	    case Peer#peer.status of
 		cache ->
-		    % for cache peers being in a .see is good enough
+		    % for cache peers being indirect contact good enough
 		    ok(update_peer(Peer#peer{last_seen=Time}, Bucket));
 		_ ->
 		    % for live/stale peers we require direct contact so ignore this
@@ -97,21 +101,21 @@ seen(Address, Suffix, Time, Bucket) ->
 	      last_seen = Time
 	     },
 	    Bucket2 = add_peer(Peer, Bucket),
-	    case peek_live_old(Bucket) of
+	    case peek_live_old(Bucket2) of
 		none -> ok(Bucket2);
 		{ok, Live_peer} -> {ping, Live_peer#peer.address, ok(Bucket2)}
 	    end
     end.
 
 % this address failed to reply in a timely manner
--spec timedout(address(), bucket()) -> th_bit_tree:bucket_update(bucket()).
+-spec timedout(address(), bucket()) -> update() | ping_and_update().
 timedout(Address, Bucket) ->
     ?INFO([timing_out, {address, Address}, {bucket, Bucket}]),
     case get_peer(Address, Bucket) of
 	{ok, Peer} ->
 	    case Peer#peer.status of
 		live ->
-		    % mark as stale, return a cache peer that might be a suitable replacement
+		    % mark as stale, maybe return a cache peer that might be a suitable replacement
 		    Bucket2 = update_peer(Peer#peer{status=stale}, Bucket),
 		    pop_cache_new(Bucket2);
 		_ -> 
@@ -170,8 +174,8 @@ split(Bucket) ->
     {split, ok(from_list(PeersF)), ok(from_list(PeersT))}.
 
 % assumes Address is not already in Bucket, otherwise crashes
--spec new_peer(address(), bits(), now(), bucket(), boolean()) -> th_bit_tree:bucket_update(bucket()).
-new_peer(Address, Suffix, Time, Bucket, May_split) ->
+-spec new_live_peer(address(), bits(), now(), bucket(), boolean()) -> update() | ping_and_update().
+new_live_peer(Address, Suffix, Time, Bucket, May_split) ->
     Peer = #peer{
       address = Address,
       'end' = th_util:to_end(Address),
@@ -197,11 +201,11 @@ new_peer(Address, Suffix, Time, Bucket, May_split) ->
 	    [Bit | Suffix2] = Suffix,
 	    case Bit of
 		false ->
-		    BucketF2 = new_peer(Address, Suffix2, Time, BucketF, May_split),
-		    {split, BucketF2, OkT};
+		    OkF2 = new_live_peer(Address, Suffix2, Time, BucketF, May_split),
+		    {split, OkF2, OkT};
 		true ->
-		    BucketT2 = new_peer(Address, Suffix2, Time, BucketT, May_split),
-		    {split, OkF, BucketT2}
+		    OkT2 = new_live_peer(Address, Suffix2, Time, BucketT, May_split),
+		    {split, OkF, OkT2}
 	    end;
 	true ->
 	    % not allowed to split, will have to go in the cache
@@ -285,12 +289,12 @@ sizes(#bucket{live=Live, stale=Stale, cache=Cache}) ->
 % drop the oldest stale peer, crashes if none exist
 -spec drop_stale(bucket()) -> bucket().
 drop_stale(#bucket{peers=Peers, stale=Stale}=Bucket) ->
-    {_Key, #peer{address=Address}, Stale2} = pq_maps:pop_hi(Stale),
+    {_Key, #peer{address=Address}, Stale2} = pq_maps:pop_lo(Stale),
     Peers2 = gb_trees:delete(Address, Peers),
     Bucket#bucket{peers=Peers2, stale=Stale2}.
 
 % return most recently seen cache peer, if any exist
--spec pop_cache_new(bucket()) -> th_bit_tree:bucket_update(bucket()) | {ping, address(), th_bit_tree:bucket_update(bucket())}.
+-spec pop_cache_new(bucket()) -> update() | ping_and_update().
 pop_cache_new(#bucket{peers=Peers, cache=Cache}=Bucket) ->
     case pq_maps:pop_hi(Cache) of
 	{_Key, #peer{address=Address}=Peer, Cache2} ->

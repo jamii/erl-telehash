@@ -5,7 +5,7 @@
 -define(DEFAULT_PORT, 42424).
 -define(END_BITS, 160).
 -define(REPLICATION, 20).
--define(DIALER_BREADTH, 3).
+-define(DIALER_PARALLEL_REQUESTS, 3).
 -define(DIALER_PING_TIMEOUT, 1000).
 -define(ROUTER_REFRESH_TIME, 60*60*1000). % one hour
 -define(ROUTER_PING_TIMEOUT, 1000).

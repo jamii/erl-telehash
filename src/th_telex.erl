@@ -120,7 +120,7 @@ end_signal({'end', _}=End) ->
 
 -spec see_command(list(address())) -> json_object().
 see_command(Addresses) ->
-    {struct, [{'.see', [th_util:address_to_binary(Address) || Address <- Addresses]}]}.
+    {struct, [{'.see', lists:map(fun th_util:address_to_binary/1, Addresses)}]}.
 
 -spec tap_command(tap()) -> json_object().
 tap_command(Tap) ->

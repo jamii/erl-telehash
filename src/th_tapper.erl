@@ -41,6 +41,7 @@ start_link() ->
 % --- gen_server callbacks ---
 
 init(State) ->
+    th_switch:listen(),
     {ok, State}.
 
 handle_call(_Request, _From, State) ->
@@ -88,6 +89,7 @@ handle_info(_, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
+    th_switch:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

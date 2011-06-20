@@ -1,5 +1,5 @@
 % a dialer locates the ?K nodes closest to a given end
-% each dialer is a gen_event handler attached to the switch manager
+% each dialer is a gen_server subscribed to the switch
 
 -module(th_dialer).
 
@@ -14,7 +14,7 @@
 
 % corresponds to k and alpha in kademlia paper
 -define(K, ?REPLICATION).
--define(A, ?DIALER_BREADTH).
+-define(A, ?DIALER_PARALLEL_REQUESTS).
 
 -type peer() :: {Distance :: non_neg_integer(), address()}.
 
@@ -28,7 +28,7 @@
 -record(state, {
 	  fresh :: pq_sets:pq(), % peers which have not yet been contacted
 	  pinged :: set(),  % peers which have been contacted and have not replied
-	  waiting :: pq_sets:pq(), % peers in pinged which were contacted less than ?DIALER_PING_TIMEOUT ago
+	  waiting :: pq_sets:pq(), % peers in pinged which were contacted less than ?DIALER_PING_TIMEOUT ago (used for throttling outgoing requests)
 	  ponged :: pq_sets:pq(), % peers which have been contacted and have replied
 	  seen :: set() % all peers which have been seen 
 	 }). % invariant: pq_sets:size(waiting) = ?A or pq_sets:empty(fresh)
@@ -96,7 +96,7 @@ handle_info({switch, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state
 	{ok, Address_binaries} ->
 	    Dist = th_util:distance(Address, Target),
 	    Peer = {Dist, Address},
-	    case sets:is_element(Peer, Pinged) of % !!! command ids would make a better check
+	    case sets:is_element(Peer, Pinged) of
 		false ->
 		    {noreply, {Conf, State}};
 		true ->
@@ -129,23 +129,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 % --- internal functions ---
 
-% is the dialing finished yet?
--spec finished(state()) -> boolean().
-finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
-    (pq_sets:is_empty(Fresh) and pq_sets:is_empty(Waiting)) % no way to continue
-    or
-    (case pq_sets:size(Ponged) >= ?K of
-	 false ->
-	     false; % dont yet have K peers
-	 true ->
-	     % finish if the K closest peers we know are closer than all the peers we haven't checked yet
-	     {Dist_fresh, _} = pq_sets:peek(Fresh),
-	     {Dist_waiting, _} = pq_sets:peek(Waiting),
-	     {Peers, _} = pq_sets:pop(Ponged, ?K),
-	     {Dist_ponged, _} = lists:last(Peers),
-	     (Dist_ponged < Dist_fresh) and (Dist_ponged < Dist_waiting)
-     end).
-
 % contact peers from fresh until the waiting list is full
 -spec ping_peers(conf(), state()) -> state().
 ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
@@ -163,7 +146,7 @@ ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
     Pinged2 = sets:union(Pinged, sets:from_list(Peers)),
     State#state{fresh=Fresh2, waiting=Waiting2, pinged=Pinged2}.
 
-% handle a reply from a peer
+% handle a .see command from a peer
 -spec ponged(peer(), list(peer()), state()) -> state().
 ponged(Peer, See, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged, ponged=Ponged, seen=Seen}=State) ->
     Waiting2 = pq_sets:delete(Peer, Waiting),
@@ -171,8 +154,25 @@ ponged(Peer, See, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged, ponged=Pon
     Ponged2 = pq_sets:push_one(Peer, Ponged),
     New_peers = lists:filter(fun (See_peer) -> not(sets:is_element(See_peer, Seen)) end, See),
     Fresh2 = pq_sets:push(New_peers, Fresh),
-    Seen2 = sets:union(Seen, sets:from_list(See)),
+    Seen2 = sets:union(Seen, sets:from_list(New_peers)),
     State#state{fresh=Fresh2, waiting=Waiting2, pinged=Pinged2, ponged=Ponged2, seen=Seen2}.
+
+% is the dialing finished yet?
+-spec finished(state()) -> boolean().
+finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
+    (pq_sets:is_empty(Fresh) and pq_sets:is_empty(Waiting)) % no way to continue
+    or
+    (case pq_sets:size(Ponged) >= ?K of
+	 false ->
+	     false; % dont yet have K peers
+	 true ->
+	     % finish if the K closest peers we know are closer than all the peers we haven't checked yet
+	     {Closest_fresh, _} = pq_sets:peek(Fresh),
+	     {Closest_waiting, _} = pq_sets:peek(Waiting),
+	     {Peers, _} = pq_sets:pop(Ponged, ?K),
+	     {Furthest_ponged, _} = lists:last(Peers),
+	     (Furthest_ponged < Closest_fresh) and (Furthest_ponged < Closest_waiting)
+     end).
 				
 % return results to the caller	  
 -spec return(conf(), state()) -> ok. 

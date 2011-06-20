@@ -1,4 +1,4 @@
-% impure lazy lists
+% pure(ish) lazy lists
 
 -module(th_iter).
 
@@ -48,24 +48,25 @@ foreach(F, Iter) ->
 	    foreach(F, Iter2)
     end.
 
+-spec push(list(X), iter(X)) -> iter(X).
+push([], Iter) ->
+    Iter;
+push([Elem | Elems], Iter) ->
+    fun () ->
+	    {Elem, push(Elems, Iter)}
+    end.
+
 -type lists(X) :: X | list(lists(X)).
 
 -spec flatten(iter(lists(X))) -> iter(X).
 flatten(Iter) ->
-    flatten([], Iter).
-
--spec flatten(list(X), iter(lists(X))) -> iter(X).
-flatten([], Iter) ->
     fun () ->
 	    case Iter() of
 		done ->
 		    done;
 		{List, Iter2} when is_list(List) ->
-		    Iter3 = flatten(List, Iter2),
-		    Iter3()
+		    push(lists:flatten(List), Iter2);
+		{Elem, Iter2} ->
+		    {Elem, Iter2}
 	    end
-    end; 
-flatten([Elem|List], Iter) ->
-    fun () ->
-	    {Elem, flatten(List, Iter)}
     end.

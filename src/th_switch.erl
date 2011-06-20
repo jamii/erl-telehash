@@ -1,4 +1,4 @@
-% switch handles sending and receiving telexes
+% handles sending and receiving telexes
 % the gen_server manages the udp socket
 % the gen_event allows other processes to subscribe to incoming/outgoing telexes
 
@@ -98,7 +98,7 @@ handle_recv(Address, Packet) ->
 	       ?INFO([recv, {address, Address}, {telex, Telex}]),
 	       gen_event:notify(?EVENT, {recv, Address, Telex})
     catch
-	error:({telex, _, _, _}=Error) ->
+	error:Error ->
 	    ?WARN([recv_error, {address, Address}, {packet, Packet}, {error, Error}])
     end.
 

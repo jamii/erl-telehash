@@ -7,7 +7,7 @@
 
 -type pq() :: gb_tree().
 
--export_types([pq_map/0]).
+-export_types([pq/0]).
 
 -spec empty() -> pq().
 empty() ->
