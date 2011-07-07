@@ -29,9 +29,22 @@ binary_to_end(String) ->
 end_to_hex({'end', End}) when is_binary(End) ->
     iolist_to_binary([io_lib:format("~2.16.0b", [Byte]) || Byte <- binary_to_list(End)]).
 
+pairs([]) ->
+    [];
+pairs([A,B | Rest]) ->
+    [[A,B] | pairs(Rest)].
+
 -spec hex_to_end(binary()) -> 'end'().
 hex_to_end(Hex) when is_binary(Hex) ->
-    {'end', iolist_to_binary([Char - 48 || Char <- binary_to_list(Hex)])}.
+    {'end', 
+     iolist_to_binary(
+       [begin
+	    {ok, [Byte], []} = io_lib:fread("~16u", Pair),
+	    Byte
+	end
+	|| Pair <- pairs(binary_to_list(Hex))]
+      )
+    }.
 
 -spec to_end(address() | 'end'()) -> 'end'(). 
 to_end(#address{}=Address) ->
