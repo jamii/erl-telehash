@@ -65,7 +65,7 @@ flatten(Iter) ->
 		done ->
 		    done;
 		{List, Iter2} when is_list(List) ->
-		    Push = push(lists:flatten(List), Iter2),
+		    Push = push(lists:flatten(List), flatten(Iter2)),
 		    Push();
 		{Elem, Iter2} ->
 		    {Elem, Iter2}
