@@ -8,7 +8,7 @@
 -include("types.hrl").
 -include("log.hrl").
 
--export([start_link/0, listen/0, deafen/0, send/2, recv/2, notify/1]).
+-export([start_link/0, start_link/1, listen/0, deafen/0, send/2, recv/2, notify/1]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -22,8 +22,12 @@
 
 -spec start_link() -> {ok, pid(), pid()}.
 start_link() ->
+    start_link(?DEFAULT_PORT).
+
+-spec start_link(integer()) -> {ok, pid(), pid()}.
+start_link(Port) ->
     {ok, Gen_event} = gen_event:start_link({local, ?EVENT}),
-    {ok, Gen_server} = gen_server:start_link({local, ?SERVER}, ?MODULE, [], []),
+    {ok, Gen_server} = gen_server:start_link({local, ?SERVER}, ?MODULE, Port, []),
     {ok, Gen_event, Gen_server}.
 
 -spec listen() -> ok.
@@ -49,8 +53,8 @@ notify(Event) ->
 
 % --- gen_server callbacks ---
 
-init([]) ->
-    {ok, Socket} = gen_udp:open(?DEFAULT_PORT, [binary]),
+init(Port) ->
+    {ok, Socket} = gen_udp:open(Port, [binary]),
     {ok, #state{socket=Socket}}.
 
 handle_call(_Request, _From, State) ->
