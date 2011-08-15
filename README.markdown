@@ -12,11 +12,11 @@ Current state of the erlang switch
 
   * Routing
 
+  * Taps
+
 * Stuff that is yet to come
 
   * ring/line/br
-
-  * Taps
 
   * Tests!
 
