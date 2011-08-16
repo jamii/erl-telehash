@@ -5,6 +5,8 @@
 -include("conf.hrl").
 -include("types.hrl").
 
+-include_lib("proper/include/proper.hrl").
+
 -export([address_to_binary/1, binary_to_address/1, binary_to_end/1, hex_to_end/1, end_to_hex/1, to_end/1, random_end/0, random_end/1, distance/2, to_bits/1]).
 -export([tap_to_json/1, json_to_tap/1]).
 -export([ensure_started/1, set_nth/3]).
@@ -116,5 +118,64 @@ json_to_subtap({struct, Json}) ->
     {struct, Is} = proplists:get_value(<<"is">>, Json, {struct, []}),
     Has = proplists:get_value(<<"has">>, Json, []),
     #subtap{is=Is, has=Has}.
+
+% --- tests ---
+
+prop_address_to_address() ->
+    ?FORALL(Address, th_test:address(),
+	    binary_to_address(address_to_binary(Address)) == Address
+	   ).
+
+to_lower(Hex) ->
+    binary:list_to_bin(string:to_lower(binary:bin_to_list(Hex))).
+
+prop_hex_to_hex() ->
+    ?FORALL(Hex, th_test:hex(),
+	    end_to_hex(hex_to_end(Hex)) == to_lower(Hex)
+	   ).
+
+prop_distance_self() ->
+    ?FORALL(End, th_test:'end'(),
+	    distance(End, End) == 0
+	   ).
+
+% can this be rewritten to be more obvious? don't like the potential for off-by-one
+prop_distance_single() ->
+    ?FORALL({End1, Pos}, {th_test:'end'(), integer(0, ?END_BITS - 1)},
+	    begin
+		{'end', <<Prefix:Pos/bitstring, Bit:1/integer, Suffix/bitstring>>} = End1,
+		End2 = {'end', <<Prefix/bitstring, (1-Bit):1/integer, Suffix/bitstring>>},
+		distance(End1, End2) == round(math:pow(2, ?END_BITS - Pos - 1))
+	    end
+	    ).
+
+prop_random_end() ->
+    ?FORALL(Len, integer(0, ?END_BITS),
+	    ?FORALL(Prefix, bitstring(Len),
+		    begin
+			{'end', <<Prefix2:Len/bitstring, _/bitstring>>} = random_end(Prefix),
+			Prefix == Prefix2
+		    end
+		   )
+	   ).
+
+prop_set_nth_get() ->
+    ?FORALL({List, Value}, {non_empty(list()), term()},
+	    ?FORALL(Pos, integer(1, length(List)),
+		    lists:nth(Pos, set_nth(Pos, List, Value)) == Value
+		   )
+	   ).
+
+prop_set_nth_id() ->
+    ?FORALL(List, non_empty(list()),
+	    ?FORALL(Pos, integer(1, length(List)),
+		    set_nth(Pos, List, lists:nth(Pos, List)) == List
+		   )
+	   ).
+
+prop_tap_to_tap() ->
+    ?FORALL(Tap, tap(),
+	    json_to_tap(tap_to_json(Tap)) == Tap
+	   ).
 
 % --- end ---
