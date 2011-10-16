@@ -225,9 +225,13 @@ refresh(Self, Table) ->
 -spec touched(address(), bits(), table()) -> table().
 touched(Address, Self, Table) ->
     th_bit_tree:update(
-         fun (Suffix, _Depth, Gap, Bucket) ->
-		 % !!! is this the correct condition?
-	         May_split =  (Gap < ?K), % !!! or (Depth < ?ROUTER_TABLE_EXPANSION)
+         fun (Suffix, Depth, Gap, Bucket) ->
+	         May_split = 
+		     % aim to ensure that the subtree containing the nearest k existing nodes is all live, split if there is no room
+		     (Gap < ?K) 
+		     or 
+		     % expand routing table for accelerated lookups
+		     (Depth rem ?ROUTER_TABLE_EXPANSION /= 0), 
 	         th_bucket:touched(Address, Suffix, now(), Bucket, May_split)
          end,
          th_util:to_bits(Address),
