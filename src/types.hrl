@@ -13,7 +13,7 @@
 -type 'end'() :: {'end', binary()}.
 -type bits() :: list(boolean()). 
 
--record(tap, {subtap}).
+-record(tap, {subtaps}).
 -type tap() :: #tap{
 	   subtaps :: list(subtap())
 		      }.
