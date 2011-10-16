@@ -14,7 +14,7 @@
 
 -define(K, ?REPLICATION).
 
--type table() :: th_bit_tree:bit_tree(th_bucket:bucket()).
+-type table() :: th_bit_tree:bit_tree().
 
 -record(bootstrap, { % the state of the router when bootstrapping
 	  timeout :: timeout(), % give up if no address received before this time
@@ -189,7 +189,7 @@ empty_table(Self) ->
       fun (_, Tree) ->
 	      th_bit_tree:update(Split, Self, Self, Tree)
       end,
-      th_bit_tree:empty(0, th_bucket:empty()),
+      th_bit_tree:new(0, th_bucket:empty()),
       lists:seq(1, ?END_BITS)
      ).
 

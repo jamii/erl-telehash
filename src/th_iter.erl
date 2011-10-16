@@ -4,12 +4,24 @@
 
 -include_lib("proper/include/proper.hrl").
 
--export([to_list/1, from_list/1, map/2, take/2, foreach/2, flatten/1]).
+-export([empty/0, cons/2, to_list/1, from_list/1, map/2, take/2, foreach/2, prepend/2, flatten/1]).
 
 -type iter(X) :: fun(() -> done | {X, iter(X)}).
 -export_types([iter/1]).
 
 % --- api ---
+
+-spec empty() -> iter(_X). 
+empty() ->
+    fun () ->
+	    done
+    end.
+
+-spec cons(X, iter(X)) -> iter(X).
+cons(X, Iter) ->
+    fun () ->
+	    {X, Iter}
+    end.
 
 -spec to_list(iter(X)) -> list(X). 
 to_list(Iter) ->
@@ -33,7 +45,7 @@ from_list(List) ->
 
 -spec map(fun((X) -> Y), iter(X)) -> iter(Y).
 map(F, Iter) ->
-                                         fun () ->
+    fun () ->
 	    case Iter() of
 		done ->
 		    done;
@@ -63,12 +75,12 @@ foreach(F, Iter) ->
 	    foreach(F, Iter2)
     end.
 
--spec push(list(X), iter(X)) -> iter(X).
-push([], Iter) ->
+-spec prepend(list(X), iter(X)) -> iter(X).
+prepend([], Iter) ->
     Iter;
-push([Elem | Elems], Iter) ->
+prepend([Elem | Elems], Iter) ->
     fun () ->
-	    {Elem, push(Elems, Iter)}
+	    {Elem, prepend(Elems, Iter)}
     end.
 
 -type lists(X) :: X | list(lists(X)).
@@ -80,8 +92,8 @@ flatten(Iter) ->
 		done ->
 		    done;
 		{List, Iter2} when is_list(List) ->
-		    Push = push(lists:flatten(List), flatten(Iter2)),
-		    Push();
+		    Prepend = prepend(lists:flatten(List), flatten(Iter2)),
+		    Prepend();
 		{Elem, Iter2} ->
 		    {Elem, flatten(Iter2)}
 	    end
@@ -127,6 +139,11 @@ prop_foreach() ->
 		  List),
 		true
 	    end
+	   ).
+
+prop_prepend() ->
+    ?FORALL({Prefix, Suffix}, {list(), list()},
+	    to_list(prepend(Prefix, from_list(Suffix))) == Prefix ++ Suffix
 	   ).
 
 prop_flatten() ->

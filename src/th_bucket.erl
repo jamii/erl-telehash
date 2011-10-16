@@ -194,7 +194,7 @@ new_live_peer(Address, Suffix, Time, Bucket, May_split) ->
 	    ?INFO([adding, {peer, Peer}, {bucket, Bucket}]),
 	    Bucket2 = drop_stale(Bucket),
 	    ok(add_peer(Peer#peer{status=live}, Bucket2));
-	May_split and (Suffix /= []) ->
+	May_split and (Suffix /= []) -> % !!! broken, may_split depends on depth
 	    % allowed to split the bucket to make space
 	    ?INFO([splitting, {peer, Peer}, {bucket, Bucket}]),
 	    {split, {ok, _, BucketF}=OkF, {ok, _, BucketT}=OkT} = split(Bucket),
