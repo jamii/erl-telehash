@@ -32,7 +32,7 @@
 
 -type bucket_update() :: 
 	  {ok, Size::integer(), bucket()} 
-	| {split, bucket(), bucket()}.
+	| {split, bucket_update(), bucket_update()}.
 -export_types(bucket_update/0).
 	
 -type update_fun() :: fun(
