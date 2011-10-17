@@ -29,11 +29,6 @@
 
 -type bit_tree() :: leaf() | branch().
 -export_types([bit_tree/0]).
-
--type bucket_update() :: 
-	  {ok, Size::integer(), bucket()} 
-	| {split, bucket_update(), bucket_update()}.
--export_types(bucket_update/0).
 	
 -type update_fun() :: fun(
 	      (
@@ -42,7 +37,8 @@
 	        Gap :: integer(), % Gap is the total size of buckets closer to the bucket containing self than the bucket containing the target of the update
 	        Bucket :: bucket()
 	      ) ->
-		bucket_update()
+	        {ok, Size::integer(), bucket()} 
+	      | {split, SizeF::integer(), bucket(), SizeT::integer(), bucket()}
 	      ).
 -export_types(update_fun/0).
 
@@ -57,8 +53,19 @@ update(Fun, Bits, Self, Tree) when is_function(Fun), is_list(Bits), is_list(Self
     update(Fun, Bits, Self, 0, 0, Tree).
 
 -spec update(update_fun(), bits(), bits(), integer(), integer(), bit_tree()) -> bit_tree().
-update(Fun, Bits, _Self, Gap, Depth, #leaf{bucket=Bucket}) ->
-    bucket_update_to_tree(Fun(Bits, Depth, Gap, Bucket));
+update(Fun, Bits, Self, Gap, Depth, #leaf{bucket=Bucket}) ->
+    case Fun(Bits, Depth, Gap, Bucket) of
+	{ok, Size, Bucket2} ->
+	    % update done
+	    #leaf{size=Size, bucket=Bucket2};
+	{split, SizeF, SizeT, BucketF, BucketT} ->
+	    % have to split the bucket first then run the update on the new tree
+	    Tree = #branch{size=SizeF+SizeT, 
+			   childF=#leaf{size=SizeF, bucket=BucketF}, 
+			   childT=#leaf{size=SizeT, bucket=BucketT}
+			  },
+	    update(Fun, Bits, Self, Gap, Depth, Tree)
+    end;
 update(Fun, Bits, Self, Gap, Depth, #branch{childF=ChildF, childT=ChildT}) ->
     [Next|Bits2] = Bits,
     {Self2, Gap2} =
@@ -107,14 +114,6 @@ tree_size(#leaf{size=Size}) ->
 tree_size(#branch{size=Size}) ->
     Size.
 
--spec bucket_update_to_tree(bucket_update()) -> bit_tree().
-bucket_update_to_tree({ok, Size, Bucket}) ->
-    #leaf{size=Size, bucket=Bucket};
-bucket_update_to_tree({split, SplitF, SplitT}) ->
-    ChildF = bucket_update_to_tree(SplitF),
-    ChildT = bucket_update_to_tree(SplitT),
-    #branch{size=tree_size(ChildF)+tree_size(ChildT), childF=ChildF, childT=ChildT}.
-
 % --- test bucket ---
 % these simple buckets just split whenever they contain more than 3 elements
 
@@ -122,25 +121,23 @@ bucket_update_to_tree({split, SplitF, SplitT}) ->
 
 -define(MAX_SIZE, 3).
 
-maybe_split(Bucket, Depth) ->
-    if 
-	(length(Bucket) > ?MAX_SIZE) and (Depth < ?END_BITS) ->
-	    ChildF = maybe_split([{Suffix, End} || {[false|Suffix], End} <- Bucket], Depth+1),
-	    ChildT = maybe_split([{Suffix, End} || {[true|Suffix], End} <- Bucket], Depth+1),
-	    {split, ChildF, ChildT};
-	true ->
-	    {ok, length(Bucket), Bucket}
-    end.
-
 add_to_tree(End, Tree) ->   
     update(
-      fun (Suffix, Depth, _Gap_size, Bucket) ->
-	      Bucket2 = [{Suffix,End}|Bucket],
-	      maybe_split(Bucket2, Depth)
+      fun (Suffix, Depth, _Gap, Bucket) ->
+	      if 
+		  (length(Bucket) > ?MAX_SIZE) and (Depth < ?END_BITS) ->
+		      ChildF = [{SuffixB, EndB} || {[false|SuffixB], EndB} <- Bucket],
+		      ChildT = [{SuffixB, EndB} || {[true|SuffixB], EndB} <- Bucket],
+		      {split, length(ChildF), length(ChildT), ChildF, ChildT};
+		  true ->
+		      Bucket2 = [{Suffix,End}|Bucket],
+		      {ok, length(Bucket2), Bucket2}
+	      end
       end,
       th_util:to_bits(End),
       th_util:to_bits(End),  % dont care about gap for now
-      Tree).
+      Tree
+     ).
 
 list_to_tree(Ends) ->   
     Tree = new(0, []),

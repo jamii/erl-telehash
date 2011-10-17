@@ -169,9 +169,11 @@ ok(Bucket) ->
 -spec split(bucket()) -> th_bit_tree:bucket_update(bucket()). 
 split(Bucket) ->
     Peers = to_list(Bucket),
-    PeersF = [Peer#peer{suffix=Suffix2} || #peer{suffix=[false|Suffix2]}=Peer <- Peers],
-    PeersT = [Peer#peer{suffix=Suffix2} || #peer{suffix=[true|Suffix2]}=Peer <- Peers],
-    {split, ok(from_list(PeersF)), ok(from_list(PeersT))}.
+    BucketF = from_list([Peer#peer{suffix=Suffix2} || #peer{suffix=[false|Suffix2]}=Peer <- Peers]),
+    {LivesF, StalesF, _} = sizes(BucketF),
+    BucketT = from_list([Peer#peer{suffix=Suffix2} || #peer{suffix=[true|Suffix2]}=Peer <- Peers]),
+    {LivesT, StalesT, _} = sizes(BucketT),
+    {split, LivesF+StalesF, LivesT+StalesT, BucketF, BucketT}.
 
 % assumes Address is not already in Bucket, otherwise crashes
 -spec new_live_peer(address(), bits(), now(), bucket(), boolean()) -> update() | ping_and_update().
@@ -194,19 +196,10 @@ new_live_peer(Address, Suffix, Time, Bucket, May_split) ->
 	    ?INFO([adding, {peer, Peer}, {bucket, Bucket}]),
 	    Bucket2 = drop_stale(Bucket),
 	    ok(add_peer(Peer#peer{status=live}, Bucket2));
-	May_split and (Suffix /= []) -> % !!! broken, may_split depends on depth
+	May_split and (Suffix /= []) ->
 	    % allowed to split the bucket to make space
 	    ?INFO([splitting, {peer, Peer}, {bucket, Bucket}]),
-	    {split, {ok, _, BucketF}=OkF, {ok, _, BucketT}=OkT} = split(Bucket),
-	    [Bit | Suffix2] = Suffix,
-	    case Bit of
-		false ->
-		    OkF2 = new_live_peer(Address, Suffix2, Time, BucketF, May_split),
-		    {split, OkF2, OkT};
-		true ->
-		    OkT2 = new_live_peer(Address, Suffix2, Time, BucketT, May_split),
-		    {split, OkF, OkT2}
-	    end;
+	    split(Bucket);
 	true ->
 	    % not allowed to split, will have to go in the cache
 	    ?INFO([caching, {peer, Peer}, {bucket, Bucket}]),
