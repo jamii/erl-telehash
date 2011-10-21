@@ -190,12 +190,7 @@ prop_update_gap() ->
 			receive
 			    {gap, Gap} ->
 				Gap2 = length(Nearer),
-				if 
-				    Gap2 == Gap ->true;
-				    true -> 
-					
-				io:format("~p in ~p~n", [Gap, Nearer]), false
-				end
+				Gap == Gap2
 			end
 		    end
 		   )
