@@ -1,6 +1,6 @@
 % a simple gen_event handler which forwards events to the specified pid
 
--module(th_switch_handler).
+-module(th_event_handler).
 
 -include("types.hrl").
 -include("conf.hrl").
@@ -20,7 +20,7 @@ handle_call(_Call, State) ->
     {ok, ok, State}.
 
 handle_event(Event, #state{pid=Pid}=State) ->
-    Pid ! {switch, Event},
+    Pid ! {event, Event},
     {ok, State}.
 
 handle_info(_Info, State) ->

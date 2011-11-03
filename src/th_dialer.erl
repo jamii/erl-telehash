@@ -1,5 +1,5 @@
 % a dialer locates the ?K nodes closest to a given end
-% each dialer is a gen_server subscribed to the switch
+% each dialer is a gen_server subscribed to th_event
 
 -module(th_dialer).
 
@@ -71,7 +71,7 @@ dial_sync(To, From, Timeout) ->
 % --- gen_server callbacks ---
 
 init({#conf{timeout=Timeout}=Conf, State}) ->
-    th_switch:listen(),
+    th_event:listen(),
     erlang:send_after(Timeout, self(), giveup),
     State2 = ping_peers(Conf, State),
     {ok, {Conf, State2}}.
@@ -89,7 +89,7 @@ handle_info({timeout, Peer}, {Conf, #state{waiting=Waiting}=State}) ->
     ?INFO([timeout, {peer, Peer}]),
     State2 = State#state{waiting=pq_sets:delete(Peer, Waiting)},
     continue(Conf, State2);
-handle_info({switch, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
+handle_info({event, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
     case th_telex:get(Telex, '.see') of
 	{error, not_found} -> 
 	    {noreply, {Conf, State}};
@@ -121,7 +121,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    th_switch:deafen(),
+    th_event:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -138,7 +138,7 @@ ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
     lists:foreach(
       fun ({_Dist, Address}=Peer) -> 
 	      ?INFO([ping, {peer, Peer}]),
-	      th_switch:send(Address, Telex),
+	      th_udp:send(Address, Telex),
 	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Peer})
       end, 
       Peers),
@@ -189,7 +189,7 @@ return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
 continue(Conf, State) ->
     case finished(State) of
 	true ->
-	    th_switch:notify({dialed, Conf#conf.target}),
+	    th_event:notify({dialed, Conf#conf.target}),
 	    return(Conf, State),
 	    {stop, {shutdown, finished}, {Conf, State}};
 	false ->

@@ -56,11 +56,11 @@ nearest(N, End, Timeout) ->
 % --- gen_server callbacks ---
 	 		 
 init(State) ->
-    th_switch:listen(),
+    th_event:listen(),
     case State of
 	#bootstrap{timeout=Timeout, addresses=Addresses} ->
 	    Telex = th_telex:end_signal(th_util:random_end()),
-	    lists:foreach(fun (Address) -> th_switch:send(Address, Telex) end, Addresses),
+	    lists:foreach(fun (Address) -> th_udp:send(Address, Telex) end, Addresses),
 	    erlang:send_after(Timeout, self(), giveup);
 	#state{} ->
 	    ok
@@ -75,7 +75,7 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Cast, State) ->
     {ok, State}.
 
-handle_info({switch, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Bootstrap) ->
+handle_info({event, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Bootstrap) ->
     % bootstrapping, waiting to receive a message telling us our own address
     case {lists:member(From, Addresses), th_telex:get(Telex, '_to')} of
 	{true, {ok, Binary}} ->
@@ -95,7 +95,7 @@ handle_info({switch, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Boots
 	_ ->
 	    {noreply, Bootstrap}
     end;
-handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
+handle_info({event, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, table=Table}=State) ->
     % count this as a reply
     Pinged2 = sets:del_element(From, Pinged),
     % touched the sender
@@ -132,7 +132,7 @@ handle_info({switch, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, tabl
 	    ok
     end,
     {noreply, State#state{pinged=Pinged2, table=Table2}};
-handle_info({switch, {dialed, End}}, #state{self=Self, table=Table}=State) ->
+handle_info({event, {dialed, End}}, #state{self=Self, table=Table}=State) ->
     % record the dialing time
     ?INFO([dialed, {'end', End}]),
     Table2 = dialed(End, Self, Table),
@@ -173,7 +173,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    th_switch:deafen(),
+    th_event:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -278,14 +278,14 @@ timedout(Address, Self, Table) ->
 -spec see(address(), 'end'(), table()) -> ok.
 see(To, End, Table) ->
     Telex = th_telex:see_command(get_nearest(?K, End, Table)),
-    th_switch:send(To, Telex).
+    th_udp:send(To, Telex).
 
 -spec ping(address()) -> ok.
 ping(To) ->
     Telex = th_telex:end_signal(th_util:random_end()),
     % do this in a message to self to avoid some awkward control flow
     self() ! {pinging, To},
-    th_switch:send(To, Telex),
+    th_udp:send(To, Telex),
     erlang:send_after(?ROUTER_PING_TIMEOUT, self(), {timeout, To}),
     ok.
 

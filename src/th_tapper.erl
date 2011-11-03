@@ -26,7 +26,7 @@ send_tap(End, Tap, Timeout) ->
     Telex = th_telex:tap_command(Tap),
     lists:foreach(
       fun (Address) ->
-	      th_switch:send(Address, Telex)
+	      th_udp:send(Address, Telex)
       end,
       Addresses
      ),
@@ -41,7 +41,7 @@ start_link() ->
 % --- gen_server callbacks ---
 
 init(State) ->
-    th_switch:listen(),
+    th_event:listen(),
     {ok, State}.
 
 handle_call(_Request, _From, State) ->
@@ -50,7 +50,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Cast, State) ->
     {ok, State}.
 
-handle_info({switch, {recv, From, Telex}}, #state{taps=Taps}=State) ->
+handle_info({event, {recv, From, Telex}}, #state{taps=Taps}=State) ->
     Taps2 =
 	case th_telex:get(Telex, '.tap') of
 	    {ok, Json} ->
@@ -74,7 +74,7 @@ handle_info({switch, {recv, From, Telex}}, #state{taps=Taps}=State) ->
 		      fun ({Address, Match}) ->
 			      Match2 = th_telex:set(Match, '_hop', Hop+1),
 			      ?INFO([forward, {address, Address}, {match, Match2}]),
-			      th_switch:send(Address, Match2)
+			      th_udp:send(Address, Match2)
 		      end,
 		      matches(Telex, dict:to_list(Taps2))
 		     );
@@ -89,7 +89,7 @@ handle_info(_, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    th_switch:deafen(),
+    th_event:deafen(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
