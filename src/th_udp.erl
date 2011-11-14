@@ -21,7 +21,7 @@
 start_link() ->
     start_link(?DEFAULT_PORT).
 
--spec start_link(integer()) -> {ok, pid(), pid()}.
+-spec start_link(integer()) -> {ok, pid()}.
 start_link(Port) ->
     {ok, _Pid} = gen_server:start_link({local, ?SERVER}, ?MODULE, Port, []).
 
