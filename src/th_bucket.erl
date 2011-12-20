@@ -18,24 +18,24 @@
 
 -type status() :: live | stale | cache.
 
--record(peer, {
+-record(peer, {address, 'end', suffix, status, last_seen}).
+-type peer() :: #peer{
 	  address :: address(), % peers address
 	  'end' :: 'end'(), % peers end
 	  suffix :: bits(), % the remaining bits of the peers end left over from the bit_tree
 	  status :: status(), % one of [live, stale, cache]
 	  last_seen :: now() % for live/stale peers, the time of the last direct contact. for cache peers the time of the last direct or indirect contact
-	 }).
--type peer() :: #peer{}.
+		       }.
 
--record(bucket, {
+-record(bucket, {last_dialed, peers, live, stale, cache}).
+-type bucket() :: #bucket{
 	  last_dialed :: never | now(), % time an end in this bucket was last dialed, or never
 	  peers :: gb_tree(), % gb_tree mapping addresses to {Status, Last_seen}
 	  % remaining fields are pq's of peers sorted by their last_seen field
 	  live :: pq_maps:pq(), % peers currently expected to be alive
 	  stale :: pq_maps:pq(), % peers which have not replied recently
-	  cache :: pq_maps:pq() % potential peers which we have not yet verified 
-	 }). % invariant: pq_maps:size(live) + pq_maps:size(stale) <= ?K
--type bucket() :: #bucket{}.
+	  cache :: pq_maps:pq() % potential peers which we have not yet verified
+	 }. % invariant: pq_maps:size(live) + pq_maps:size(stale) <= ?K
 -export_types([bucket/0]).
 
 -type update() :: th_bit_tree:bucket_update(bucket()) .
