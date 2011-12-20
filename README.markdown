@@ -35,6 +35,4 @@ Startup:
     ./rebar get-deps
     ./rebar compile
     erl -pa ebin/ deps/proper/ebin/
-    th_event:start_link().
-    th_udp:start_link().
-    th_router:bootstrap().
+    telehash_sup:start_link().
