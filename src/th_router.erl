@@ -50,8 +50,7 @@ bootstrap(Addresses, Timeout) ->
 
 -spec nearest(pos_integer(), 'end'(), timeout()) -> list(address()).
 nearest(N, End, Timeout) ->
-    {ok, Nearest} = gen_server:call(?MODULE, {nearest, N, End}, Timeout),
-    Nearest.
+    gen_server:call(?MODULE, {nearest, N, End}, Timeout).
 
 % --- gen_server callbacks ---
 
