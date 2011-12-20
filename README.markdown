@@ -16,11 +16,15 @@ Current state of the erlang switch
 
 * Stuff that is yet to come
 
-  * Supervisors, application, rel
+  * Sane configuration
+
+  * Startup scripts
 
   * ring/line/br
 
   * Tests!
+
+  * Example apps
 
 * Stuff that would one day be nice
 
