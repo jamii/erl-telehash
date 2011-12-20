@@ -90,20 +90,21 @@ update(Fun, Bits, Self, Gap, Depth, #branch{childF=ChildF, childT=ChildT}) ->
 % iterate through buckets in ascending order of xor distance to Bits
 -spec iter(bits(), bit_tree()) -> th_iter:iter(bucket()).
 iter(Bits, Tree) ->
-    iter(Bits, Tree, th_iter:empty()).
-			     
--spec iter(bits(), bit_tree(), th_iter:iter(bucket())) -> th_iter:iter(bucket()).
-iter(_Suffix, #leaf{bucket=Bucket}, Iter) ->
-    th_iter:cons(Bucket, Iter);
-iter(Suffix, #branch{childF=ChildF, childT=ChildT}, Iter) ->
+    iter(Bits, [], Tree, th_iter:empty()).
+
+-spec iter(bits(), bits(), bit_tree(), th_iter:iter(bucket())) -> th_iter:iter(bucket()).
+iter(_Suffix, Prefix, #leaf{bucket=Bucket}, Iter) ->
+    th_iter:cons({lists:reverse(Prefix), Bucket}, Iter);
+iter(Suffix, Prefix, #branch{childF=ChildF, childT=ChildT}, Iter) ->
     [Bit|Suffix2] = Suffix,
-    case Bit of 
+    Prefix2 = [Bit|Prefix],
+    case Bit of
 	false ->
 	    % childF first, childT second
-	    iter(Suffix2, ChildF, iter(Suffix2, ChildT, Iter));
+	    iter(Suffix2, Prefix2, ChildF, iter(Suffix2, Prefix2, ChildT, Iter));
 	true ->
 	    % childT first, childF second
-	    iter(Suffix2, ChildT, iter(Suffix2, ChildF, Iter))
+	    iter(Suffix2, Prefix2, ChildT, iter(Suffix2, Prefix2, ChildF, Iter))
     end.
 
 % --- internal functions ---
