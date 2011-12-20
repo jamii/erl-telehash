@@ -38,5 +38,4 @@ Startup:
 
     ./rebar get-deps
     ./rebar compile
-    erl -pa ebin/ deps/proper/ebin/
-    telehash_sup:start_link().
+    erl -pa ebin/ deps/proper/ebin/ -s telehash -port 42424

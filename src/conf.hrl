@@ -1,8 +1,21 @@
 % configuration values
 % will at some point be replaced by a dynamically loaded configuration file
 
+-define(CONF(Key, Default),
+        case init:get_argument(Key) of
+            {ok, [[Val]]} -> Val;
+            error -> Default
+        end).
+
+-define(CONF(Key, Default, Fun),
+        case init:get_argument(Key) of
+            {ok, [[Val]]} -> Fun(Val);
+            error -> Default
+        end).
+
+-define(PORT, ?CONF(port, 42424, fun list_to_integer/1)).
+
 -define(TELEX_MAX_BYTES, 1400).
--define(DEFAULT_PORT, 42424).
 -define(END_BITS, 160).
 -define(REPLICATION, 20).
 -define(DIALER_PARALLEL_REQUESTS, 3).

@@ -19,7 +19,7 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    start_link(?DEFAULT_PORT).
+    start_link(?PORT).
 
 -spec start_link(integer()) -> {ok, pid()}.
 start_link(Port) ->
