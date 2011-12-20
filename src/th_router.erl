@@ -191,7 +191,7 @@ empty_table(Self) ->
                     _ -> th_bucket:split(Bucket)
                 end
         end,
-    th_bit_tree:update(Split, Self, Self, th_1bit_tree:new(0, th_bucket:empty())).
+    th_bit_tree:update(Split, Self, Self, th_bit_tree:new(0, th_bucket:empty())).
 
 -spec needs_refresh(th_bucket:bucket(), now()) -> boolean().
 needs_refresh(Bucket, Now) ->
