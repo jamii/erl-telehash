@@ -134,7 +134,7 @@ code_change(_OldVsn, State, _Extra) ->
 ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pinged}=State) ->
     Num = ?A - pq_sets:size(Waiting),
     {Peers, Fresh2} = pq_sets:pop(Fresh, Num),
-    Telex = th_telex:end_signal(Target),
+    Telex = th_telex:end_signal(th_util:to_end(Target)),
     lists:foreach(
       fun ({_Dist, Address}=Peer) ->
 	      ?INFO([ping, {peer, Peer}]),
