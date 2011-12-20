@@ -29,15 +29,15 @@
 
 -type bit_tree() :: leaf() | branch().
 -export_types([bit_tree/0]).
-	
+
 -type update_fun() :: fun(
 	      (
-                Suffix :: bits(),  
+                Suffix :: bits(),
 	        Depth :: integer(),
 	        Gap :: integer(), % Gap is the total size of buckets closer to the bucket containing self than the bucket containing the target of the update
 	        Bucket :: bucket()
 	      ) ->
-	        {ok, Size::integer(), bucket()} 
+	        {ok, Size::integer(), bucket()}
 	      | {split, SizeF::integer(), bucket(), SizeT::integer(), bucket()}
 	      ).
 -export_types(update_fun/0).
@@ -47,7 +47,7 @@
 -spec new(Size::integer(), bucket()) -> leaf().
 new(Size, Bucket) ->
     #leaf{size=Size, bucket=Bucket}.
-	
+
 -spec update(update_fun(), bits(), bits(), bit_tree()) -> bit_tree().
 update(Fun, Bits, Self, Tree) when is_function(Fun), is_list(Bits), is_list(Self) ->
     update(Fun, Bits, Self, 0, 0, Tree).
@@ -60,8 +60,8 @@ update(Fun, Bits, Self, Gap, Depth, #leaf{bucket=Bucket}) ->
 	    #leaf{size=Size, bucket=Bucket2};
 	{split, SizeF, SizeT, BucketF, BucketT} ->
 	    % have to split the bucket first then run the update on the new tree
-	    Tree = #branch{size=SizeF+SizeT, 
-			   childF=#leaf{size=SizeF, bucket=BucketF}, 
+	    Tree = #branch{size=SizeF+SizeT,
+			   childF=#leaf{size=SizeF, bucket=BucketF},
 			   childT=#leaf{size=SizeT, bucket=BucketT}
 			  },
 	    update(Fun, Bits, Self, Gap, Depth, Tree)
@@ -122,10 +122,10 @@ tree_size(#branch{size=Size}) ->
 
 -define(MAX_SIZE, 3).
 
-add_to_tree(End, Tree) ->   
+add_to_tree(End, Tree) ->
     update(
       fun (Suffix, Depth, _Gap, Bucket) ->
-	      if 
+	      if
 		  (length(Bucket) > ?MAX_SIZE) and (Depth < ?END_BITS) ->
 		      ChildF = [{SuffixB, EndB} || {[false|SuffixB], EndB} <- Bucket],
 		      ChildT = [{SuffixB, EndB} || {[true|SuffixB], EndB} <- Bucket],
@@ -140,7 +140,7 @@ add_to_tree(End, Tree) ->
       Tree
      ).
 
-list_to_tree(Ends) ->   
+list_to_tree(Ends) ->
     Tree = new(0, []),
     lists:foldl(fun add_to_tree/2, Tree, Ends).
 
@@ -151,7 +151,7 @@ tree_to_buckets(Target, Tree) ->
 
 % iter(Bits, Tree) should return Tree's buckets in ascending order of xor distance to Bits
 prop_iter_order() ->
-    ?FORALL(Ends, list(th_test:'end'()), 
+    ?FORALL(Ends, list(th_test:'end'()),
 	    ?FORALL(Target, th_test:'end'(),
 		    begin
 			DistancesA = lists:sort([th_util:distance(Target, End) || End <- Ends]),
@@ -165,17 +165,17 @@ prop_iter_order() ->
 
 % gap can be defined as the total size of all buckets closer to self than the target
 prop_update_gap() ->
-    ?FORALL(Ends, list(th_test:'end'()), 
+    ?FORALL(Ends, list(th_test:'end'()),
 	    ?FORALL({Self, Target}, {th_test:'end'(), th_test:'end'()},
 		    begin
 			Tree = add_to_tree(Target, list_to_tree(Ends)),
 			% run through buckets starting at Self until we find one containing Target
-			Nearer = 
+			Nearer =
 			    lists:flatten(
 			      lists:takewhile(
-				fun (Bucket) -> 
-					lists:keyfind(Target, 2, Bucket) == false 
-				end, 
+				fun (Bucket) ->
+					lists:keyfind(Target, 2, Bucket) == false
+				end,
 				tree_to_buckets(Self, Tree)
 			       )
 			     ),
@@ -195,6 +195,6 @@ prop_update_gap() ->
 			end
 		    end
 		   )
-	   ).	    
+	   ).
 
 % --- end ---

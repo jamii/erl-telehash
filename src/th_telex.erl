@@ -13,7 +13,7 @@
 -type json_number() :: integer() | float().
 -type json_array() :: [json()].
 -type json_object() :: {struct, [{json_string(), json()}]}.
--type json() :: json_string() | json_number() | 
+-type json() :: json_string() | json_number() |
 		json_array() | json_object().
 -type telex() :: json().
 
@@ -30,7 +30,7 @@ encode(Telex) ->
     Json =
 	try
 	    iolist_to_binary(mochijson2:encode(Telex))
-	catch 
+	catch
 	    _:Error ->
 		erlang:error({telex, encode, Error, Telex})
 	end,
@@ -47,7 +47,7 @@ decode(Json) ->
     end,
     try
 	mochijson2:decode(Json)
-    catch 
+    catch
 	_:Error ->
 	    erlang:error({telex, decode, Error, Json})
     end.
@@ -114,7 +114,7 @@ set_nth(N, [Head | Tail], Value) when N>1 ->
 
 % --- common telexes ---
 
--spec end_signal('end'()) -> json_object().	
+-spec end_signal('end'()) -> json_object().
 end_signal({'end', _}=End) ->
     {struct, [{'+end', th_util:end_to_hex(End)}]}.
 

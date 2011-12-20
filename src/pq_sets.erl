@@ -27,7 +27,7 @@ push_one({Prio, Item}, Q) ->
 
 -spec pop_one(pq()) -> none | {{Prio::term(), Item::term()}, pq()}.
 pop_one(Q) ->
-    case is_empty(Q) of 
+    case is_empty(Q) of
 	true -> none;
 	false ->
 	    {{Prio, Item}, Q2} = gb_sets:take_smallest(Q),
@@ -43,7 +43,7 @@ pop(Q, 0) ->
     {[], Q};
 pop(Q, K) when K > 0 ->
     case pop_one(Q) of
-	none -> 
+	none ->
 	    {[], Q};
 	{Item, Q2} ->
 	    {Items, Q3} = pop(Q2, K-1),

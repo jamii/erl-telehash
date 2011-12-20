@@ -58,7 +58,7 @@ handle_info({event, {recv, From, Telex}}, #state{taps=Taps}=State) ->
 		    Tap ->
 			?INFO([new_tap, {from, From}, {tap, Tap}]),
 			dict:store(From, Tap, Taps)
-		catch 
+		catch
 		    _ ->
 			?WARN([bad_tap, {from, From}, {json, Json}]),
 			Taps
@@ -81,9 +81,9 @@ handle_info({event, {recv, From, Telex}}, #state{taps=Taps}=State) ->
 		true ->
 		    ok
 	    end;
-	_ -> 
+	_ ->
 	    ok
-    end,	
+    end,
     {noreply, State#state{taps=Taps2}};
 handle_info(_, State) ->
     {noreply, State}.
@@ -99,7 +99,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec matches(th_telex:telex(), list({address(), tap()})) -> list({address(), th_telex:telex()}).
 matches(Telex, Taps) ->
-    Matches = 
+    Matches =
 	lists:map(
 	  fun ({Address, Tap}) ->
 		  {Address, match(Tap, Telex)}
@@ -114,14 +114,14 @@ matches(Telex, Taps) ->
      ).
 
 -spec match(tap(), th_telex:telex()) -> th_telex:json_object().
-match(#tap{subtaps=Subtaps}, Telex) -> 
+match(#tap{subtaps=Subtaps}, Telex) ->
     {struct,
      lists:concat(
        lists:map(
-	 fun (Subtap) -> 
+	 fun (Subtap) ->
 		 {struct, Signals} = match_subtap(Subtap, Telex),
 		 Signals
-	 end, 
+	 end,
 	 Subtaps
 	)
       )
@@ -159,6 +159,3 @@ match_has(Has, Telex) ->
      ).
 
 % --- end ---
-
-
-

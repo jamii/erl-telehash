@@ -56,7 +56,7 @@ handle_cast({send, #address{host=Host, port=Port}=Address, Telex}, #state{socket
 	    ?WARN([send_error, {address, Address}, {telex, Telex2}, {error, Error}, {trace, erlang:get_stacktrace()}])
     end,
     {noreply, State};
-handle_cast({recv, #address{}=Address, Packet}, State) -> 
+handle_cast({recv, #address{}=Address, Packet}, State) ->
     handle_recv(Address, Packet),
     {noreply, State};
 handle_cast(_Packet, State) ->

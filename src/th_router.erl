@@ -29,7 +29,7 @@
 	 }).
 -type state() :: #state{}.
 
-% --- api ---	
+% --- api ---
 
 -spec start(address()) -> {ok, pid()}.
 start(#address{}=Address) ->
@@ -45,7 +45,7 @@ bootstrap() ->
 -spec bootstrap(list(address()), timeout()) -> {ok, pid()}.
 bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
-    State = #bootstrap{timeout=Timeout, addresses=Addresses},    
+    State = #bootstrap{timeout=Timeout, addresses=Addresses},
     {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
 
 -spec nearest(pos_integer(), 'end'(), timeout()) -> list(address()).
@@ -54,7 +54,7 @@ nearest(N, End, Timeout) ->
     Nearest.
 
 % --- gen_server callbacks ---
-	 		 
+
 init(State) ->
     th_event:listen(),
     case State of
@@ -87,7 +87,7 @@ handle_info({event, {recv, From, Telex}}, #bootstrap{addresses=Addresses}=Bootst
 		    refresh(Self, Table),
 		    ?INFO([bootstrap, finished, {self, Binary}, {from, From}]),
 		    {noreply, #state{self=Self, pinged=sets:new(), table=Table}}
-	    catch 
+	    catch
 		_ ->
 		    ?WARN([bootstrap, bad_self, {self, Binary}, {from, From}]),
 		    {noreply, Bootstrap}
@@ -128,7 +128,7 @@ handle_info({event, {recv, From, Telex}}, #state{self=Self, pinged=Pinged, table
 		_ ->
 		    ?WARN([bad_see, {'end', Hex}, {from, From}])
 	    end;
-	_ -> 
+	_ ->
 	    ok
     end,
     {noreply, State#state{pinged=Pinged2, table=Table2}};
@@ -196,9 +196,9 @@ empty_table(Self) ->
 -spec needs_refresh(th_bucket:bucket(), now()) -> boolean().
 needs_refresh(Bucket, Now) ->
     case th_bucket:last_dialed(Bucket) of
-	never -> 
+	never ->
 	    true;
-	Last -> 
+	Last ->
 	    (timer:now_diff(Now, Last) div 1000) > ?ROUTER_REFRESH_TIME
     end.
 
@@ -226,12 +226,12 @@ refresh(Self, Table) ->
 touched(Address, Self, Table) ->
     th_bit_tree:update(
          fun (Suffix, Depth, Gap, Bucket) ->
-	         May_split = 
+	         May_split =
 		     % aim to ensure that the subtree containing the nearest k existing nodes is all live, split if there is no room
-		     (Gap < ?K) 
-		     or 
+		     (Gap < ?K)
+		     or
 		     % expand routing table for accelerated lookups
-		     (Depth rem ?ROUTER_TABLE_EXPANSION /= 0), 
+		     (Depth rem ?ROUTER_TABLE_EXPANSION /= 0),
 	         th_bucket:touched(Address, Suffix, now(), Bucket, May_split)
          end,
          th_util:to_bits(Address),
@@ -274,7 +274,7 @@ timedout(Address, Self, Table) ->
          Self,
          Table
         ).
-    
+
 -spec see(address(), 'end'(), table()) -> ok.
 see(To, End, Table) ->
     Telex = th_telex:see_command(get_nearest(?K, End, Table)),

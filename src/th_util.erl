@@ -11,7 +11,7 @@
 -export([tap_to_json/1, json_to_tap/1]).
 -export([ensure_started/1, set_nth/3]).
 
-% --- api --- 
+% --- api ---
 
 -spec address_to_binary(address()) -> binary().
 address_to_binary(#address{host={A,B,C,D}, port=Port}) ->
@@ -19,7 +19,7 @@ address_to_binary(#address{host={A,B,C,D}, port=Port}) ->
 
 -spec binary_to_address(binary()) -> address().
 binary_to_address(Binary) when is_binary(Binary) ->
-    {ok, [A, B, C, D, Port], ""} = io_lib:fread("~u.~u.~u.~u:~u", binary_to_list(Binary)), 
+    {ok, [A, B, C, D, Port], ""} = io_lib:fread("~u.~u.~u.~u:~u", binary_to_list(Binary)),
     #address{host={A,B,C,D}, port=Port}.
 
 -spec binary_to_end(binary()) -> 'end'().
@@ -38,7 +38,7 @@ pairs([A,B | Rest]) ->
 
 -spec hex_to_end(binary()) -> 'end'().
 hex_to_end(Hex) when is_binary(Hex) ->
-    {'end', 
+    {'end',
      iolist_to_binary(
        [begin
 	    {ok, [Byte], []} = io_lib:fread("~16u", Pair),
@@ -48,7 +48,7 @@ hex_to_end(Hex) when is_binary(Hex) ->
       )
     }.
 
--spec to_end(address() | 'end'()) -> 'end'(). 
+-spec to_end(address() | 'end'()) -> 'end'().
 to_end(#address{}=Address) ->
     binary_to_end(address_to_binary(Address));
 to_end({'end', _} = End) ->
@@ -69,7 +69,7 @@ bit(false) ->
 bit(true) ->
     1.
 
--spec random_end() -> 'end'().	
+-spec random_end() -> 'end'().
 random_end() ->
     {'end', crypto:rand_bytes(?END_BITS div 8)}.
 

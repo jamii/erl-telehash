@@ -61,7 +61,7 @@ touched(Address, Suffix, Time, Bucket, May_split) ->
     case get_peer(Address, Bucket) of
 	{ok, Peer} ->
 	    case Peer#peer.status of
-		live -> 
+		live ->
 		    % update last_seen time
 		    ok(update_peer(Peer#peer{last_seen=Time}, Bucket));
 		stale ->
@@ -118,14 +118,14 @@ timedout(Address, Bucket) ->
 		    % mark as stale, maybe return a cache peer that might be a suitable replacement
 		    Bucket2 = update_peer(Peer#peer{status=stale}, Bucket),
 		    pop_cache_new(Bucket2);
-		_ -> 
-		    % if cache or stale already we don't care 
+		_ ->
+		    % if cache or stale already we don't care
 		    ok(Bucket)
 	    end;
 	none ->
 	    % wtf? we don't even know this peer?
-	    % one way this could happen: 
-	    % send N1, sendN1, timedout N1, add N2 (pushing N1 out of stale), timedout N1 
+	    % one way this could happen:
+	    % send N1, sendN1, timedout N1, add N2 (pushing N1 out of stale), timedout N1
 	    ?WARN([unknown_peer_timedout, {address, Address}, {bucket, Bucket}]),
 	    ok(Bucket)
     end.
@@ -166,7 +166,7 @@ ok(Bucket) ->
     {ok, Lives + Stales, Bucket}.
 
 % response format for bit_tree
--spec split(bucket()) -> th_bit_tree:bucket_update(bucket()). 
+-spec split(bucket()) -> th_bit_tree:bucket_update(bucket()).
 split(Bucket) ->
     Peers = to_list(Bucket),
     BucketF = from_list([Peer#peer{suffix=Suffix2} || #peer{suffix=[false|Suffix2]}=Peer <- Peers]),
@@ -210,7 +210,7 @@ new_live_peer(Address, Suffix, Time, Bucket, May_split) ->
 
 % assumes Peer does not already exist in Bucket, crashes otherwise
 -spec add_peer(peer(), bucket()) -> bucket().
-add_peer(#peer{address=Address, status=Status, last_seen=Last_seen}=Peer, 
+add_peer(#peer{address=Address, status=Status, last_seen=Last_seen}=Peer,
 	 #bucket{peers=Peers, live=Live, stale=Stale, cache=Cache}=Bucket) ->
     Peers2 = gb_trees:insert(Address, {Status, Last_seen}, Peers),
     case Status of
@@ -224,7 +224,7 @@ add_peer(#peer{address=Address, status=Status, last_seen=Last_seen}=Peer,
 	    Cache2 = pq_maps:push_one({Last_seen, Address}, Peer, Cache),
 	    Bucket#bucket{peers=Peers2, cache=Cache2}
     end.
-    
+
 % assumes Peer already exists in Bucket, crashes otherwise
 -spec del_peer(peer() | address(), bucket()) -> bucket().
 del_peer(#peer{address=Address}, Bucket) ->
@@ -251,11 +251,11 @@ update_peer(Peer, Bucket) ->
     add_peer(Peer, del_peer(Peer, Bucket)).
 
 -spec get_peer(address(), bucket()) -> none | {ok, peer()}.
-get_peer(Address, 
+get_peer(Address,
 	 #bucket{peers=Peers, live=Live, stale=Stale, cache=Cache}) ->
     case gb_trees:lookup(Address, Peers) of
 	{value, {Status, Last_seen}} ->
-	    case Status of 
+	    case Status of
 		live ->
 		    {ok, pq_maps:get({Last_seen, Address}, Live)};
 		stale ->
@@ -263,7 +263,7 @@ get_peer(Address,
 		cache ->
 		    {ok, pq_maps:get({Last_seen, Address}, Cache)}
 	    end;
-	none -> 
+	none ->
 	    none
     end.
 
@@ -304,5 +304,5 @@ peek_live_old(#bucket{live=Live}) ->
 	none -> none;
 	{_, Peer} -> {ok, Peer}
     end.
-	     	    
+
 % --- end ---

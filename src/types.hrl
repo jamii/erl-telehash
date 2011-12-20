@@ -6,12 +6,12 @@
 
 -record(address, {host, port}).
 -type address() :: #address{
-	       host :: ip_address(), 
+	       host :: ip_address(),
 	       port :: integer()
 		       }.
 
 -type 'end'() :: {'end', binary()}.
--type bits() :: list(boolean()). 
+-type bits() :: list(boolean()).
 
 -record(tap, {subtaps}).
 -type tap() :: #tap{
@@ -20,6 +20,6 @@
 
 -record(subtap, {is, has}).
 -type subtap() :: #subtap{
-	      is :: list({Key :: th_telex:json_string(), Value :: th_telex:json()}), 
+	      is :: list({Key :: th_telex:json_string(), Value :: th_telex:json()}),
 	      has :: list(Key :: th_telex:json_string())
 		 }.

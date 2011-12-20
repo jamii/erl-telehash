@@ -30,7 +30,7 @@
 	  pinged :: set(),  % peers which have been contacted and have not replied
 	  waiting :: pq_sets:pq(), % peers in pinged which were contacted less than ?DIALER_PING_TIMEOUT ago (used for throttling outgoing requests)
 	  ponged :: pq_sets:pq(), % peers which have been contacted and have replied
-	  seen :: set() % all peers which have been seen 
+	  seen :: set() % all peers which have been seen
 	 }). % invariant: pq_sets:size(waiting) = ?A or pq_sets:empty(fresh)
 -type state() :: #state{}.
 
@@ -49,10 +49,10 @@ dial(To, From, Timeout) ->
     Peers = [{th_util:distance(Address, To), Address}
 	     || Address <- From],
     State = #state{
-      fresh=pq_sets:from_list(Peers), 
+      fresh=pq_sets:from_list(Peers),
       pinged=sets:new(),
       waiting=pq_sets:empty(),
-      ponged=pq_sets:empty(), 
+      ponged=pq_sets:empty(),
       seen=sets:new()
      },
     {ok, _Pid} = gen_server:start(?MODULE, {Conf, State}, []),
@@ -91,7 +91,7 @@ handle_info({timeout, Peer}, {Conf, #state{waiting=Waiting}=State}) ->
     continue(Conf, State2);
 handle_info({event, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{pinged=Pinged}=State}) ->
     case th_telex:get(Telex, '.see') of
-	{error, not_found} -> 
+	{error, not_found} ->
 	    {noreply, {Conf, State}};
 	{ok, Address_binaries} ->
 	    Dist = th_util:distance(Address, Target),
@@ -108,7 +108,7 @@ handle_info({event, {recv, Address, Telex}}, {#conf{target=Target}=Conf, #state{
 			    ?INFO([pong, {from, Peer}, {peers, Peers}]),
 			    State2 = ponged(Peer, Peers, State),
 			    continue(Conf, State2)
-		    catch 
+		    catch
 			_:Error ->
 			    ?WARN([bad_see, {from, Address}, {telex, Telex}, {error, Error}, {trace, erlang:get_stacktrace()}]),
 			    {noreply, {Conf, State}}
@@ -136,11 +136,11 @@ ping_peers(#conf{target=Target}, #state{fresh=Fresh, waiting=Waiting, pinged=Pin
     {Peers, Fresh2} = pq_sets:pop(Fresh, Num),
     Telex = th_telex:end_signal(Target),
     lists:foreach(
-      fun ({_Dist, Address}=Peer) -> 
+      fun ({_Dist, Address}=Peer) ->
 	      ?INFO([ping, {peer, Peer}]),
 	      th_udp:send(Address, Telex),
 	      erlang:send_after(?DIALER_PING_TIMEOUT, self(), {timeout, Peer})
-      end, 
+      end,
       Peers),
     Waiting2 = pq_sets:push(Peers, Waiting),
     Pinged2 = sets:union(Pinged, sets:from_list(Peers)),
@@ -173,9 +173,9 @@ finished(#state{fresh=Fresh, waiting=Waiting, ponged=Ponged}) ->
 	     {Furthest_ponged, _} = lists:last(Peers),
 	     (Furthest_ponged < Closest_fresh) and (Furthest_ponged < Closest_waiting)
      end).
-				
-% return results to the caller	  
--spec return(conf(), state()) -> ok. 
+
+% return results to the caller
+-spec return(conf(), state()) -> ok.
 return(#conf{ref=Ref, caller=Caller}, #state{ponged=Ponged}) ->
     {Peers, _} = pq_sets:pop(Ponged, ?K),
     Result = [Address || {_Dist, Address} <- Peers],
@@ -198,4 +198,3 @@ continue(Conf, State) ->
     end.
 
 % --- end ---
-  

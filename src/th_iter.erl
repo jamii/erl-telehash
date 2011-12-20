@@ -11,7 +11,7 @@
 
 % --- api ---
 
--spec empty() -> iter(_X). 
+-spec empty() -> iter(_X).
 empty() ->
     fun () ->
 	    done
@@ -23,7 +23,7 @@ cons(X, Iter) ->
 	    {X, Iter}
     end.
 
--spec to_list(iter(X)) -> list(X). 
+-spec to_list(iter(X)) -> list(X).
 to_list(Iter) ->
     case Iter() of
 	done ->
@@ -35,7 +35,7 @@ to_list(Iter) ->
 -spec from_list(list(X)) -> iter(X).
 from_list(List) ->
     fun () ->
-	    case List of 
+	    case List of
 		[] ->
 		    done;
 		[Head | List2] ->
@@ -123,13 +123,13 @@ prop_foreach() ->
     ?FORALL(List, list(),
 	    begin
 		foreach(
-		  fun (Elem) -> 
-			  self() ! {prop_foreach, Elem} 
-		  end, 
+		  fun (Elem) ->
+			  self() ! {prop_foreach, Elem}
+		  end,
 		  from_list(List)),
 		lists:foreach(
 		  fun (Elem) ->
-			  receive 
+			  receive
 			      {prop_foreach, Elem2} ->
 				  Elem = Elem2
 			  after 0 ->

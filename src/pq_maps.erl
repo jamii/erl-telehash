@@ -32,7 +32,7 @@ push_one(Key, Value, Q) ->
 
 -spec pop_lo(pq()) -> none | {Key::term(), Value::term(), pq()}.
 pop_lo(Q) ->
-    case is_empty(Q) of 
+    case is_empty(Q) of
 	true -> none;
 	false ->
 	    gb_trees:take_smallest(Q)
@@ -40,7 +40,7 @@ pop_lo(Q) ->
 
 -spec pop_hi(pq()) -> none | {Key::term(), Value::term(), pq()}.
 pop_hi(Q) ->
-    case is_empty(Q) of 
+    case is_empty(Q) of
 	true -> none;
 	false ->
 	    gb_trees:take_largest(Q)
@@ -55,7 +55,7 @@ pop_los(Q, 0) ->
     {[], Q};
 pop_los(Q, K) when K > 0 ->
     case pop_lo(Q) of
-	none -> 
+	none ->
 	    {[], Q};
 	{Key, Value, Q2} ->
 	    {Items, Q3} = pop_los(Q2, K-1),
@@ -76,8 +76,8 @@ peek_hi(Q) ->
 	false -> gb_trees:largest(Q)
     end.
 
-% assumes Key is in Q, crashes otherwise 
--spec get(term(), pq()) -> Value::term(). 
+% assumes Key is in Q, crashes otherwise
+-spec get(term(), pq()) -> Value::term().
 get(Key, Q) ->
     gb_trees:get(Key, Q).
 
