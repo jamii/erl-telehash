@@ -12,7 +12,7 @@
 -include("conf.hrl").
 -include("log.hrl").
 
--export([empty/0, split/1, touched/5, seen/4, timedout/2, dialed/2, by_dist/2, last_touched/1, last_dialed/1]).
+-export([empty/0, ok/1, split/1, touched/5, seen/4, timedout/2, dialed/2, by_dist/2, last_touched/1, last_dialed/1]).
 
 -define(K, ?REPLICATION).
 

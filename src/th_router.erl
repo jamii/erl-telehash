@@ -184,14 +184,14 @@ code_change(_OldVsn, State, _Extra) ->
 -spec empty_table(bits()) -> table().
 empty_table(Self) ->
     % pre-split buckets containing Self, so that refreshes hit a useful number of buckets
-    Split = fun (_, _, _, Bucket) -> th_bucket:split(Bucket) end,
-    lists:foldl(
-      fun (_, Tree) ->
-	      th_bit_tree:update(Split, Self, Self, Tree)
-      end,
-      th_bit_tree:new(0, th_bucket:empty()),
-      lists:seq(1, ?END_BITS)
-     ).
+    Split =
+        fun (Bits, _, _, Bucket) ->
+                case Bits of
+                    [] -> th_bucket:ok(Bucket);
+                    _ -> th_bucket:split(Bucket)
+                end
+        end,
+    th_bit_tree:update(Split, Self, Self, th_1bit_tree:new(0, th_bucket:empty())).
 
 -spec needs_refresh(th_bucket:bucket(), now()) -> boolean().
 needs_refresh(Bucket, Now) ->
