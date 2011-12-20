@@ -36,7 +36,7 @@ start(#address{}=Address) ->
     ?INFO([starting]),
     Self = th_util:to_bits(Address),
     State = #state{self=Self, pinged=sets:new(), table=empty_table(Self)},
-    {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
+    {ok, _Pid} = gen_server:start_link({local, ?MODULE}, ?MODULE, State, []).
 
 -spec bootstrap() -> {ok, pid()}.
 bootstrap() ->
@@ -46,7 +46,7 @@ bootstrap() ->
 bootstrap(Addresses, Timeout) ->
     ?INFO([bootstrapping]),
     State = #bootstrap{timeout=Timeout, addresses=Addresses},
-    {ok, _Pid} = gen_server:start_link(?MODULE, State, []).
+    {ok, _Pid} = gen_server:start_link({local, ?MODULE}, ?MODULE, State, []).
 
 -spec nearest(pos_integer(), 'end'(), timeout()) -> list(address()).
 nearest(N, End, Timeout) ->
