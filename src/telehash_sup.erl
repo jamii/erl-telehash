@@ -28,4 +28,5 @@ init([]) ->
     {ok, {{one_for_one, 5, 10},
           [?CHILD(th_event, worker),
            ?CHILD(th_udp, worker),
-           ?CHILD(th_router, worker, bootstrap)]}}.
+           ?CHILD(th_router, worker, bootstrap),
+           ?CHILD(th_tapper, worker)]}}.
