@@ -26,7 +26,7 @@ tap(List) ->
           fun (Sublist) ->
                   #subtap{
                     is = [{Key,Val} || {Key,Val} <- Sublist],
-                    has = [Key || Key <- Sublist when is_list(Key) or is_binary(Key)]
+                    has = [Key || Key <- Sublist, is_list(Key) or is_binary(Key)]
                   }
           end,
           List),
