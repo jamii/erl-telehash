@@ -7,7 +7,7 @@
 -include("conf.hrl").
 -include("log.hrl").
 
--export([tap/1, send_tap/3, start_link/0, match/2]).
+-export([start_link/0, tap/1, send_tap/3, match/2]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -31,7 +31,6 @@ tap(List) ->
           end,
           List),
     #tap{subtaps=Subtaps}.
-
 
 -spec send_tap('end'(), tap(), timeout()) -> ok.
 send_tap(End, Tap, Timeout) ->
