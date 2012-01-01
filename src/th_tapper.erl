@@ -7,7 +7,7 @@
 -include("conf.hrl").
 -include("log.hrl").
 
--export([send_tap/3, start_link/0]).
+-export([tap/1, send_tap/3, start_link/0]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -19,6 +19,19 @@
 	 }).
 
 % --- api ---
+
+tap(List) ->
+    Subtaps =
+        lists:map(
+          fun (Sublist) ->
+                  #subtap{
+                    is = [{Key,Val} || {Key,Val} <- Sublist],
+                    has = [Key || Key <- Sublist when is_list(Key) or is_binary(Key)]
+                  }
+          end,
+          List),
+    #tap{subtaps=Subtaps}.
+
 
 -spec send_tap('end'(), tap(), timeout()) -> ok.
 send_tap(End, Tap, Timeout) ->
