@@ -43,7 +43,7 @@ send_tap(End, Tap, Timeout) ->
       end,
       Addresses
      ),
-    ok.
+    {ok, Addresses}.
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
